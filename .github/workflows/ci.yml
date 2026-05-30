@@ -37,6 +37,25 @@ jobs:
 
       - run: pnpm test
 
+  go-relay:
+    name: go vet + test (${{ matrix.os }}, go ${{ matrix.go }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go: ['1.22', '1.23']
+    defaults:
+      run:
+        working-directory: apps/relay-go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+      - run: go vet ./...
+      - run: go test ./...
+
   spec-validation:
     name: spec docs + test vectors are valid JSON
     runs-on: ubuntu-latest
