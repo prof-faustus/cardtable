@@ -1,7 +1,7 @@
 /**
  * AuditTranscript — full signed message stream for a session.
  *
- * Per `Formal_Architecture` §3.2.15. The transcript is what an
+ * The transcript is what an
  * independent auditor uses to replay the session deterministically.
  */
 

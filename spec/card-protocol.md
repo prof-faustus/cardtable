@@ -136,8 +136,10 @@ hand.
 
 If a participant withholds an entropy reveal:
 
-- The relevant entropy-commitment output's **timeout branch**
-  (CSV-gated) becomes spendable.
+- The relevant entropy-commitment output's **cooperative-fallback
+  branch** becomes spendable once the input's relative-locktime delta
+  matures (the pre-signed advance-without-this-player tx carries the
+  delta on its input `nSequence`).
 - The cooperative-fallback path inside the timeout branch
   (`m-of-(n-1)` of the other players) allows the remaining quorum to
   continue without the non-revealer's entropy. The non-revealer is
@@ -149,7 +151,8 @@ If a participant withholds a card reveal at showdown (extended model):
   cooperative fold-surrender branch may be triggered by the holder if
   they prefer to fold rather than reveal a losing hand. If the holder
   is silent through both reveal and fold deadlines, the recovery
-  branch (CLTV) eventually returns custody to the original funder.
+  branch eventually returns custody to the original funder via the
+  pre-signed recovery refund tx whose `nLockTime = recovery_height`.
 
 ## 9. Conformance
 

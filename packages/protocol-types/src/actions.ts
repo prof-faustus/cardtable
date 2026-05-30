@@ -116,7 +116,7 @@ export interface TimeoutAction extends SignedActionBase {
   readonly silenced_seat: Seat;
 }
 
-/** Recovery — broadcast past the absolute CLTV recovery deadline. */
+/** Recovery — pre-signed tx whose `nLockTime` is the absolute recovery height. */
 export interface RecoveryAction extends SignedActionBase {
   readonly action_type: 'Recovery';
   readonly recovery_trigger: string;

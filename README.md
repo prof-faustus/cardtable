@@ -5,11 +5,10 @@
 
 
 > **Research code, in early scaffolding.** This repository implements the
-> protocol specified in [`PROJECT_SPEC.md`](PROJECT_SPEC.md) and the
-> [Formal Architecture document](Formal_Architecture_Dealerless_Card_Game_BSV_v1.docx)
-> ([plaintext extract](docs/Formal_Architecture.txt)).
-> Per the project's token model, tokens carry **no external monetary value**
-> and the system is not a regulated gambling product. See [LICENSE](LICENSE).
+> protocol specified in [`PROJECT_SPEC.md`](PROJECT_SPEC.md) and the spec
+> documents under [`spec/`](spec/). Per the project's token model, tokens
+> carry **no external monetary value** and the system is not a regulated
+> gambling product. See [LICENSE](LICENSE).
 
 ## What this is
 
@@ -22,23 +21,20 @@ operational judgement call.
 
 First production target: **In-Between** (Acey-Deucey).
 
-## Two source-of-truth documents
+## Source of truth
 
 | File | Role |
 |---|---|
 | [`PROJECT_SPEC.md`](PROJECT_SPEC.md) | Working build spec; coding standards; project structure; build order; do-not lists |
-| [`Formal_Architecture_Dealerless_Card_Game_BSV_v1.docx`](Formal_Architecture_Dealerless_Card_Game_BSV_v1.docx) | Formal architecture: product, protocol, data model, threat model, transaction model, APIs, implementation workstreams |
-| [`docs/Formal_Architecture.txt`](docs/Formal_Architecture.txt) | Plaintext extract of the DOCX, for `grep` and code-search |
-
-Where the two disagree, `PROJECT_SPEC.md` rules of operation override and the
-Formal Architecture's substantive claims override. Disagreements between the
-two are tracked in `docs/adr/`.
+| [`spec/`](spec/) | Per-aspect protocol specification (state machine, transaction types, script templates, timeout rules, recovery rules, serialisation, ordering, card protocol, wire protocol, peer discovery) |
+| [`spec/test-vectors/`](spec/test-vectors/) | Canonical input/output vectors that bind every implementation to identical behaviour |
+| [`docs/adr/`](docs/adr/) | Architecture Decision Records covering every design choice made under ambiguity |
 
 ## Stack (per PROJECT_SPEC.md §Technology Stack)
 
 - **Client:** TypeScript (strict), React 18, Vite, Zustand, Dexie, Web Crypto, BSV TypeScript SDK
 - **Backend:** Go 1.22+, WebSocket relay, Aerospike, Kafka, BSV Go SDK
-- **Out of scope:** anything BTC-specific (Lightning, Taproot, SegWit, BTC opcode limits), Postgres/Redis for game state, ORM, GraphQL, server-managed game state
+- **Out of scope:** off-chain payment networks, second-layer rollups, alternative script extensions, Postgres/Redis for game state, ORM, GraphQL, server-managed game state. Every state transition is on-chain.
 
 ## Build phases (per PROJECT_SPEC.md §Build Order)
 
@@ -57,7 +53,6 @@ commit. Subsequent commits will fill each phase in turn.
 ```
 cardtable/
 ├── PROJECT_SPEC.md, README.md, LICENSE
-├── Formal_Architecture_Dealerless_Card_Game_BSV_v1.docx
 ├── spec/                # Protocol specification (source of truth for protocol behaviour)
 ├── packages/            # Shared TypeScript packages
 │   ├── protocol-types/
@@ -79,10 +74,8 @@ corresponding phase fills them.
 
 ## Critical rules (excerpted from PROJECT_SPEC.md, repeated here for visibility)
 
-- **BSV ≠ BTC.** No BTC opcode limits, no Lightning, no Taproot, no SegWit, no SPV
-  via BTC libraries. Use the BSV TypeScript / Go SDKs only.
-- **Script is Turing-complete on BSV post-Genesis.** `OP_CLTV` / `OP_CSV` are
-  available and required for timeout branches.
+- **Build to BSV consensus and the post-Genesis opcode set.** Use the BSV TypeScript / Go SDKs only.
+- **Script is Turing-complete on BSV post-Genesis.** Timelocks live at the transaction level (`nLockTime`, input `nSequence`); no in-script timelock opcode is used by any cardtable template.
 - **Tokens carry no external value.** This is not a regulated gambling product.
 - **Zero fabrication.** Every number, claim, and technical statement traces
   to a source or is marked as an assumption with a tracked obligation.

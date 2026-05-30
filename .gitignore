@@ -40,3 +40,8 @@ Thumbs.db
 *.log
 *.tmp
 scratch/
+
+# User's reference architecture document and its plaintext extract.
+# Kept locally for the author; not tracked in this repository.
+Formal_Architecture_Dealerless_Card_Game_BSV_v1.docx
+docs/Formal_Architecture.txt

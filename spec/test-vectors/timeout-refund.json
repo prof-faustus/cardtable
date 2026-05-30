@@ -68,7 +68,7 @@
         "economic_state": { "pot": 2000 },
         "successor_state_commitment": "computed"
       },
-      "locktime": { "kind": "CSV", "blocks": 6 },
+      "locktime": { "kind": "relative_blocks", "blocks_since_input_confirmation": 6 },
       "outputs": [
         { "kind": "round-state", "value_sats": 0 },
         { "kind": "OP_RETURN_metadata", "value_sats": 0, "fields": { "silenced_seat": 0, "default_action": "pass" } }
@@ -77,7 +77,7 @@
   ],
   "asserts": [
     "expected_state.pot_value == initial_state.pot_value (pass is economically neutral)",
-    "the timeout transaction's CSV gate matches decision_timeout_blocks exactly",
+    "the timeout transaction's input nSequence relative-locktime delta matches decision_timeout_blocks exactly",
     "no balance changes; only the round advances"
   ],
   "notes": "S8 silence is the legitimate default; pass is not a penalty. This vector demonstrates that the state engine handles a TimeoutTick input deterministically from the state alone (no clock; the block height is an explicit input)."

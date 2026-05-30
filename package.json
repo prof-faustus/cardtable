@@ -11,10 +11,10 @@
     "apps/client-web"
   ],
   "scripts": {
-    "build": "pnpm -r --filter './packages/**' build",
-    "test": "pnpm -r --filter './packages/**' test",
-    "typecheck": "pnpm -r --filter './packages/**' build",
-    "lint": "pnpm -r --filter './packages/**' lint",
+    "build": "pnpm -r --filter \"@cardtable/*\" build",
+    "test": "pnpm -r --filter \"@cardtable/*\" test",
+    "typecheck": "pnpm -r --filter \"@cardtable/*\" build",
+    "lint": "pnpm -r --filter \"@cardtable/*\" lint",
     "ci": "pnpm build && pnpm test"
   },
   "devDependencies": {

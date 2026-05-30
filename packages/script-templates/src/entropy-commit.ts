@@ -1,17 +1,24 @@
 /**
- * `entropy-commit` template per `spec/script-templates.md` §2.4.
+ * `entropy-commit` template.
  *
- * Reveal branch: spender provides entropy plaintext; script checks
- *   SHA-256(plaintext) == commitment_hash and a player signature.
+ * One UTXO per player carrying that player's entropy commitment.
+ * Three exits via IF/ELSE branches:
+ *   1. Reveal — player provides entropy preimage + signature.
+ *   2. Cooperative fallback — every counterparty (n-of-(n-1)) signs
+ *      a pre-signed advance-without-this-player tx; that tx's input
+ *      `nSequence` carries the relative-locktime delta so miners
+ *      reject it before the decision deadline matures.
+ *   3. Refund — bare player signature on a pre-signed refund tx
+ *      whose `nLockTime` equals the recovery height.
  *
- * Timeout branch: after CSV-relative `decision_timeout_blocks`,
- *   - cooperative fallback: m-of-(n-1) of the other players;
- *   - CLTV-gated player refund.
+ * **No in-script timelock opcode.**
  */
 
 import type { BlockHeight, Hash256, Pubkey33 } from '@cardtable/protocol-types';
 import { OP } from './opcodes.js';
 import { ScriptWriter } from './writer.js';
+import { absoluteHeight, immediate, relativeBlocks } from './locktime.js';
+import type { LockTimeSpec } from './locktime.js';
 
 export interface EntropyCommitParams {
   readonly commitment_hash: Hash256;
@@ -21,30 +28,36 @@ export interface EntropyCommitParams {
   readonly recovery_height: BlockHeight;
 }
 
-export function buildEntropyCommitScript(p: EntropyCommitParams): Uint8Array {
+export interface BranchSpec {
+  readonly name: string;
+  readonly locktime: LockTimeSpec;
+}
+
+export interface BuiltEntropyCommit {
+  readonly locking_script: Uint8Array;
+  readonly branches: readonly BranchSpec[];
+}
+
+export function buildEntropyCommit(p: EntropyCommitParams): BuiltEntropyCommit {
   const w = new ScriptWriter();
   w.op(OP.OP_IF);
-  // Reveal branch.
+  // 1. Reveal branch.
   w.op(OP.OP_SHA256);
   w.pushHash32(p.commitment_hash);
   w.op(OP.OP_EQUALVERIFY);
   w.pushPubkey(p.player_pubkey);
   w.op(OP.OP_CHECKSIG);
-
   w.op(OP.OP_ELSE);
-  // Timeout outer branch: CSV-gated.
-  w.pushNumber(p.decision_timeout_blocks);
-  w.op(OP.OP_CHECKSEQUENCEVERIFY);
-  w.op(OP.OP_DROP);
+
   w.op(OP.OP_IF);
-  // Cooperative fallback: m-of-(n-1) of other players.
+  // 2. Cooperative fallback: n-of-(n-1) of the other players sign the
+  // pre-signed advance-without-this-player tx. With no counterparties
+  // the branch is unsatisfiable — OP_RETURN poisons it.
   if (p.other_pubkeys.length === 0) {
-    // Degenerate: no other pubkeys means cooperative fallback impossible.
-    // Place a known-false predicate so the branch always fails.
     w.op(OP.OP_RETURN);
   } else {
     if (p.other_pubkeys.length > 16) {
-      throw new Error('buildEntropyCommitScript: other_pubkeys > 16 not supported in v1');
+      throw new Error('buildEntropyCommit: other_pubkeys > 16 not supported in v1');
     }
     w.pushNumber(p.other_pubkeys.length);
     for (const pk of p.other_pubkeys) w.pushPubkey(pk);
@@ -52,13 +65,23 @@ export function buildEntropyCommitScript(p: EntropyCommitParams): Uint8Array {
     w.op(OP.OP_CHECKMULTISIG);
   }
   w.op(OP.OP_ELSE);
-  // CLTV recovery refund.
-  w.pushNumber(p.recovery_height);
-  w.op(OP.OP_CHECKLOCKTIMEVERIFY);
-  w.op(OP.OP_DROP);
+  // 3. Refund: bare player signature on a tx whose nLockTime is the
+  // recovery height. Timing enforced by the spending tx, not script.
   w.pushPubkey(p.player_pubkey);
   w.op(OP.OP_CHECKSIG);
   w.op(OP.OP_ENDIF);
+
   w.op(OP.OP_ENDIF);
-  return w.bytes();
+  return {
+    locking_script: w.bytes(),
+    branches: [
+      { name: 'reveal', locktime: immediate },
+      { name: 'cooperative_fallback', locktime: relativeBlocks(p.decision_timeout_blocks) },
+      { name: 'refund', locktime: absoluteHeight(p.recovery_height) },
+    ],
+  };
+}
+
+export function buildEntropyCommitScript(p: EntropyCommitParams): Uint8Array {
+  return buildEntropyCommit(p).locking_script;
 }

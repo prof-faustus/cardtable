@@ -52,8 +52,10 @@ A cooperative action and a timeout transaction for the same state are
 mutually exclusive but are not symmetric:
 
 - The timeout transaction is **invalid** until the decision deadline
-  matures (the `OP_CSV` gate). Therefore an in-time cooperative action
-  always **legally** wins prior to the deadline.
+  matures — consensus rejects it before its input `nSequence`
+  relative-locktime delta has elapsed since the locking output was
+  confirmed. Therefore an in-time cooperative action always **legally**
+  wins prior to the deadline.
 - After the deadline matures, both branches are simultaneously valid
   until one is confirmed. The choice rule of §3.1 then applies; the
   cooperative action keeps a tie-break advantage because it was valid

@@ -1,14 +1,14 @@
 /**
  * Player and WalletIdentity types.
  *
- * Per `Formal_Architecture` §3.2.1 / §3.2.2.
+ * Per the per-player and wallet-identity fields used throughout the
+ * spec and test vectors.
  */
 
 import type { Outpoint, PlayerId, Pubkey33, Satoshis, Seat } from './primitives.js';
 
 /**
- * Participation lifecycle status for one player in one session. See
- * `Formal_Architecture` §3.2.1.
+ * Participation lifecycle status for one player in one session.
  */
 export type ParticipationStatus =
   | 'invited'

@@ -23,11 +23,11 @@
 
 ### BSV Specificity — CRITICAL
 
-- **BSV and BTC are categorically distinct.** BSV/Teranode shares no codebase with Bitcoin Core. Any assumptions imported from BTC tooling, documentation, libraries, or conventions are WRONG and must not be made.
+- **BSV is Bitcoin (the original protocol).** Build to the BSV consensus rules and the post-Genesis BSV opcode set as authoritative.
 - **Use BSV SDKs only.** The BSV TypeScript SDK (for browser client) and BSV Go SDK (for backend services) are the authoritative chain-interaction libraries.
-- **Script is Turing-complete on BSV.** Do not apply BTC script limitations (block size, opcode restrictions, standardness rules) to BSV.
-- **Transaction cost is effectively negligible.** Do not design around block-space scarcity. Design around throughput (≥10⁶ TPS sustained) and bounded latency.
-- **No SegWit. No Lightning. No Taproot.** These are BTC constructs. They do not exist on BSV.
+- **Script is Turing-complete on BSV (post-Genesis).** Build for the post-Genesis opcode set, unbounded script size, and the original-protocol semantics it restores.
+- **Transaction cost is effectively negligible.** Design around throughput (≥10⁶ TPS sustained) and bounded latency, not around block-space scarcity.
+- **Timelocks are at the transaction level only.** Use `nLockTime` (absolute, block height) and input `nSequence` (relative-locktime delta) on the spending transaction. No locking script in this protocol contains an in-script timelock opcode.
 - **SPV is the client verification model.** Not full-node validation. Use BUMP proofs, merkle proofs, and header chains.
 
 ### Token Model
@@ -478,28 +478,29 @@ TABLE_OPEN
 | `CARD_DEAL` | `OP_CHECKSIG`, `OP_HASH160` | None |
 | `BET_ACTION` | `OP_CHECKSIG` | None |
 | `PASS_ACTION` | `OP_CHECKSIG` | None |
-| `TIMEOUT_DEFAULT` | `OP_CHECKLOCKTIMEVERIFY`, `OP_CHECKSIG` | Short (30s–2min) |
+| `TIMEOUT_DEFAULT` | `OP_CHECKSIG` (n-of-n via pre-sign) | Tx input `nSequence` relative-locktime (short) |
 | `CARD_REVEAL` | `OP_SHA256`, `OP_EQUALVERIFY` | None |
 | `FOLD` | `OP_CHECKSIG` (no reveal required) | None |
 | `SETTLEMENT` | `OP_CHECKMULTISIG` or `OP_CHECKSIG` | None |
-| `RECOVERY` | `OP_CHECKSEQUENCEVERIFY`, `OP_CHECKSIG` | Long (10–30min) |
+| `RECOVERY` | `OP_CHECKSIG` (n-of-n via pre-sign) | Tx `nLockTime` absolute (long) |
 | `TABLE_CLOSE` | `OP_CHECKSIG` | None |
 
 ### Script Template Pattern
 
 ```
-// Conceptual pot-lock script
+// Conceptual pot-lock script — no in-script timelock opcode.
+// Timing comes from the spending tx's nLockTime / nSequence.
 IF
-  // Cooperative path: all required signatures
+  // Cooperative path: all required signatures.
   <N> <PubKey1> ... <PubKeyN> <N> OP_CHECKMULTISIG
 ELSE
   IF
-    // Winner claim path: valid reveal proof + winner signature
+    // Winner claim path: reveal proof + winner signature.
     OP_SHA256 <expected_hash> OP_EQUALVERIFY
     <WinnerPubKey> OP_CHECKSIG
   ELSE
-    // Timeout refund path: after lock-time, anyone can trigger refund
-    <timeout_height> OP_CHECKLOCKTIMEVERIFY OP_DROP
+    // Refund path: bare signature. The pre-signed refund tx carries
+    // nLockTime = recovery_height; consensus rejects it before that.
     <RefundPubKey> OP_CHECKSIG
   ENDIF
 ENDIF
@@ -518,7 +519,7 @@ Before play begins, ALL players must sign fallback transactions for:
 7. Table closure refund
 8. Global recovery unwind
 
-**Every fallback tx uses `OP_CHECKLOCKTIMEVERIFY` or `OP_CHECKSEQUENCEVERIFY`.**
+**Every fallback tx carries its time gate on the transaction itself: `nLockTime` for absolute deadlines, input `nSequence` for relative-locktime deltas. No locking script contains an in-script timelock opcode.**
 
 ---
 
@@ -1154,7 +1155,7 @@ The following are formally identified as hard prerequisites. They must be resolv
 - No mobile native apps (browser-first)
 - No server-side game state (state is derived from transactions)
 - No account-based balance model (UTXO only)
-- No BTC/Lightning/Taproot anything
+- No off-chain bolt-on payment networks, second-layer rollups, or alternative script extensions — every state transition is on-chain
 - No "decentralised" ideology in documentation or code
 - No GraphQL
 - No ORM (Aerospike driver directly)
@@ -1173,7 +1174,7 @@ The following are formally identified as hard prerequisites. They must be resolv
 
 ## Reminders for Every Session
 
-1. **BSV is not BTC.** Check every library, opcode reference, and assumption.
+1. **Build to BSV consensus.** Verify every library, opcode reference, and assumption against the BSV post-Genesis specification.
 2. **The state engine is deterministic.** `State = f(valid_table_transactions)`. If it produces different results for the same inputs, it is broken.
 3. **Every state has a timeout branch.** No exceptions. No "we'll handle that later."
 4. **Every transaction is sent both to the network and directly to peers.** Dual-path propagation is not optional.

@@ -18,10 +18,13 @@ every default-on-silence consequence is enumerated.
   canonical `stateHash`.
 - **Successor template** — the canonical pattern for a transaction that
   spends the state's action-right output.
-- **Decision deadline** — relative locktime delta (CSV, blocks) after which
-  the timeout branch becomes spendable.
-- **Recovery deadline** — absolute locktime (CLTV, blocks) after which the
-  global recovery branch becomes spendable.
+- **Decision deadline** — relative-locktime delta in blocks, applied to
+  the spending transaction's input `nSequence`. The timeout-default tx
+  becomes valid after this many blocks have elapsed since the locking
+  output's confirmation.
+- **Recovery deadline** — absolute block height, applied to the spending
+  transaction's `nLockTime`. The recovery tx becomes valid at or after
+  this height.
 - All locktimes use block-height semantics (`nLockTime < 5e8`); per-second
   semantics are out of scope for v1.
 

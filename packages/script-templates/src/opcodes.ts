@@ -1,8 +1,10 @@
 /**
  * BSV Script opcode constants.
  *
- * Only the opcodes the cardtable templates require. Post-Genesis BSV
- * opcode set is the assumed runtime; see Formal Architecture A1.
+ * Only the opcodes the cardtable templates require, all operational on
+ * BSV post-Genesis. Timing constraints in this protocol live at the
+ * **transaction level** (`nLockTime`, `nSequence`); no in-script
+ * timelock opcode is used by any template.
  */
 
 export const OP = {
@@ -55,8 +57,6 @@ export const OP = {
   OP_CHECKSIGVERIFY: 0xad,
   OP_CHECKMULTISIG: 0xae,
   OP_CHECKMULTISIGVERIFY: 0xaf,
-  OP_CHECKLOCKTIMEVERIFY: 0xb1,
-  OP_CHECKSEQUENCEVERIFY: 0xb2,
 } as const;
 
 export type Opcode = (typeof OP)[keyof typeof OP];

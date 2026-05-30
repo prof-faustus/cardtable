@@ -1,7 +1,8 @@
 /**
  * RoundState and GameInstance types.
  *
- * Per `spec/state-machine.md` §5 and `Formal_Architecture` §3.2.4 / §3.2.8.
+ * Per `spec/state-machine.md` §5 (the canonical state-class set) and the
+ * `RoundState` / `GameInstance` shapes used by the test vectors.
  */
 
 import type {

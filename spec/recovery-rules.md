@@ -13,7 +13,7 @@ recovery timeout matures (per `spec/script-templates.md`).
 ## 2. Triggers
 
 The recovery transaction `TXC_RECOVERY` becomes valid when the
-session's absolute CLTV recovery deadline matures. It is broadcast by
+session's absolute recovery deadline matures — i.e. when the spending tx's `nLockTime` field is at or below the current block height. It is broadcast by
 any participant (or by a watchtower; out of scope for v1). It consumes
 the deepest unsettled state output along the cooperative chain.
 
@@ -54,8 +54,9 @@ each plausible stall point. These pre-signed transactions:
 
 - Reference each plausible stalled state's recovery-branch output.
 - Distribute value per §3.
-- Carry `OP_CHECKLOCKTIMEVERIFY` of the session's absolute recovery
-  height.
+- Carry `nLockTime = session_start + recovery_timeout_blocks` (the
+  session's absolute recovery height); consensus rejects them before
+  that height. **No in-script timelock opcode is used.**
 - Are stored peer-to-peer and in the `AuditTranscript`.
 
 ## 5. Recovery and concealed cards

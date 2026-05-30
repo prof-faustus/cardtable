@@ -60,7 +60,7 @@
         "referenced_state_hash": "S4-state-hash",
         "recovery_trigger": "RECOVERY_TIMEOUT_S4"
       },
-      "locktime": { "kind": "CLTV", "block_height": 244 },
+      "locktime": { "kind": "absolute_height", "not_before_height": 244 },
       "outputs": [
         { "kind": "p2pkh_refund", "seat": 0, "value_sats": 1050 },
         { "kind": "p2pkh_refund", "seat": 1, "value_sats": 900 },
@@ -72,5 +72,5 @@
     "sum(expected_emitted_txs[0].outputs[*].value_sats) == sum(initial_state.players[*].stake_at_risk_sats) (conservation: 1050 + 900 = 1950 + ... wait, that's 1950, not 2000)"
   ],
   "_known_quirk": "Conservation check above intentionally reads false because In-Between v1's penalty schedule for non_reveal deducts 100 from the offender and routes only 50 to the other seat; the remaining 50 of the offender's deducted amount is recorded as 'penalty_burnt' in the final_distribution (not present in this vector because In-Between v1 has only 2 seats). For 3+-seat sessions the deducted 100 splits across the other seats. The vector is correct as-written; the conservation invariant the engine asserts is 'sum(refunds) + sum(penalty_burnt) == sum(stakes_at_risk)'.",
-  "notes": "Exercises spec/recovery-rules.md §3. The recovery transaction is pre-signed at session start (spec/recovery-rules.md §4) and broadcast by any participant after the CLTV gate matures. The default action of 'recovery_rules.refund_stakes_to_funders' is the dominant rule; per-rule-set overrides modify the distribution but not the conservation invariant."
+  "notes": "Exercises spec/recovery-rules.md §3. The recovery transaction is pre-signed at session start (spec/recovery-rules.md §4) and broadcast by any participant after the absolute nLockTime gate matures. The default action of 'recovery_rules.refund_stakes_to_funders' is the dominant rule; per-rule-set overrides modify the distribution but not the conservation invariant."
 }

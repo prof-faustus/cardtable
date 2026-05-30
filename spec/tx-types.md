@@ -17,10 +17,10 @@
 | `TXC_CARD_REVEAL`    | `CardReveal` | deck-commitment output (or prior round-state) | round-state output with one more visible card recorded | — |
 | `TXC_BET_ACTION`     | `BetAction` | round-state output (action-right branch) | round-state output with bet recorded | — |
 | `TXC_PASS`           | `Pass` | round-state output (action-right branch) | round-state output with pass recorded | — |
-| `TXC_TIMEOUT`        | `Timeout` | round-state output (timeout branch) | round-state output with default consequence recorded | **CSV** (relative, since state established) |
+| `TXC_TIMEOUT`        | `Timeout` | round-state output (timeout branch) | round-state output with default consequence recorded | input `nSequence` relative-locktime, blocks since state established |
 | `TXC_SETTLE`         | `Settle` | round-state output + pot output | updated pot output + per-player balance outputs | — |
 | `TXC_ROTATE_TURN`    | `RotateTurn` | settled round-state output | next round-state output with next acting player | — |
-| `TXC_RECOVERY`       | `Recovery` | stalled state output (recovery branch) | refund outputs per recovery-rules | **CLTV** (absolute, session-wide) |
+| `TXC_RECOVERY`       | `Recovery` | stalled state output (recovery branch) | refund outputs per recovery-rules | `nLockTime` (absolute, session-wide) |
 | `TXC_TABLE_CLOSE`    | `TableClose` | terminal table-root output | final per-player balance outputs | — |
 | `TXC_FOLD`           | `Fold` | concealed-hand custody output (extended deck model) | dead-hand surrender output | — |
 
@@ -129,9 +129,10 @@ fields**, and any class-specific notes.
   - Output 0 — revealed-entropy marker (binary equality with the
     committed hash is verified inside the unlocking script).
   - Output 1 — `OP_RETURN` metadata carrying the opened entropy.
-- **Locktime:** none. Reveal-window timing is enforced by the **timeout
-  branch** of the entropy-commitment output itself (CSV-gated), not by
-  this class.
+- **Locktime:** none. Reveal-window timing is enforced by the
+  **cooperative-fallback branch** of the entropy-commitment output —
+  the pre-signed advance-without-this-player tx carries the relative-
+  locktime delta on its input `nSequence`, not by this class.
 
 ### 4.6 `TXC_DECK_COMMIT` — DeckCommit
 
@@ -152,8 +153,9 @@ fields**, and any class-specific notes.
   - Output 0 — round-state output carrying the additional revealed card.
   - Output 1 — `OP_RETURN` metadata + reveal proof binding the revealed
     plaintext to the deck commitment.
-- **Locktime:** none for the cooperative branch; the prior state's
-  timeout branch (CSV-gated) is the failure path.
+- **Locktime:** none for the cooperative branch; the failure path is
+  the prior state's timeout branch, whose pre-signed timeout-default
+  tx carries the relative-locktime delta on its input `nSequence`.
 
 ### 4.8 `TXC_BET_ACTION` — BetAction
 
@@ -182,8 +184,10 @@ fields**, and any class-specific notes.
     (pass for `S8 BET_DECISION` in In-Between v1).
   - Output 1 — `OP_RETURN` metadata identifying the silenced acting
     player and the default action applied.
-- **Locktime:** `RuleSet.decision_timeout_blocks` relative blocks since
-  the consumed state was established (CSV).
+- **Locktime:** input `nSequence` encodes
+  `RuleSet.decision_timeout_blocks` relative blocks since the consumed
+  state was established; consensus rejects the tx before that delta
+  matures.
 
 ### 4.11 `TXC_SETTLE` — Settle
 
@@ -215,8 +219,9 @@ fields**, and any class-specific notes.
   - Outputs 0..k — refund / penalty outputs per the
     `RuleSet.recovery_rules`.
   - Output k+1 — `OP_RETURN` metadata + diagnostic record.
-- **Locktime:** absolute block height fixed at session start (CLTV).
-  Default: `TableOpen` block height + `RuleSet.recovery_timeout_blocks`.
+- **Locktime:** `nLockTime = TableOpen` block height +
+  `RuleSet.recovery_timeout_blocks` (absolute, fixed at session
+  start). Consensus rejects the tx before that height.
 
 ### 4.14 `TXC_TABLE_CLOSE` — TableClose
 

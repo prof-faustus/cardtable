@@ -1,49 +1,67 @@
 /**
- * `table-root` template per `spec/script-templates.md` §2.1.
+ * `table-root` template.
  *
- * Cooperative n-of-n CHECKMULTISIG or CLTV-gated operator refund.
+ * Locks the table-root output under an n-of-n multisig of the seated
+ * participants. Every legal spend (TableLock, cooperative close,
+ * refund, recovery) is one of a set of **pre-signed** transactions,
+ * each carrying its own `nLockTime` / input `nSequence` to gate
+ * timing at the transaction level. The script itself has no in-script
+ * timelock opcode.
  */
 
 import type { BlockHeight, Pubkey33 } from '@cardtable/protocol-types';
 import { OP } from './opcodes.js';
 import { ScriptWriter } from './writer.js';
+import { absoluteHeight, immediate } from './locktime.js';
+import type { LockTimeSpec } from './locktime.js';
 
 export interface TableRootParams {
   /** All seated player pubkeys (or invited pubkeys for the open variant). */
   readonly seated_pubkeys: readonly Pubkey33[];
-  /** Operator pubkey for the refund branch. */
-  readonly operator_pubkey: Pubkey33;
-  /** Absolute block height for the CLTV refund branch. */
+  /** Absolute block height at which the recovery branch's pre-signed tx becomes valid. */
   readonly recovery_height: BlockHeight;
 }
 
-/** Build the canonical bytes of a `table-root` locking script. */
-export function buildTableRootLockingScript(p: TableRootParams): Uint8Array {
+export interface BranchSpec {
+  readonly name: string;
+  readonly locktime: LockTimeSpec;
+}
+
+export interface BuiltTemplate {
+  readonly locking_script: Uint8Array;
+  readonly branches: readonly BranchSpec[];
+}
+
+/**
+ * Build the locking script bytes and the branch table that names the
+ * pre-signed spending transactions. The script is a single n-of-n
+ * CHECKMULTISIG; each branch corresponds to a distinct pre-signed
+ * transaction whose `nLockTime` gates when miners will accept it.
+ */
+export function buildTableRoot(p: TableRootParams): BuiltTemplate {
   if (p.seated_pubkeys.length === 0) {
-    throw new Error('buildTableRootLockingScript: at least one pubkey required');
+    throw new Error('buildTableRoot: at least one pubkey required');
   }
   if (p.seated_pubkeys.length > 16) {
-    // CHECKMULTISIG accepts m/n > 16 via CScriptNum push, but cardtable
-    // tables are capped at 16 seats in v1. Increase here when the spec
-    // raises the seat limit.
     throw new Error(
-      `buildTableRootLockingScript: seat count ${p.seated_pubkeys.length} exceeds v1 max of 16`,
+      `buildTableRoot: seat count ${p.seated_pubkeys.length} exceeds v1 max of 16`,
     );
   }
   const w = new ScriptWriter();
-  w.op(OP.OP_IF);
-  // Cooperative branch: N of N CHECKMULTISIG.
   w.pushNumber(p.seated_pubkeys.length);
   for (const pk of p.seated_pubkeys) w.pushPubkey(pk);
   w.pushNumber(p.seated_pubkeys.length);
   w.op(OP.OP_CHECKMULTISIG);
-  w.op(OP.OP_ELSE);
-  // CLTV refund branch.
-  w.pushNumber(p.recovery_height);
-  w.op(OP.OP_CHECKLOCKTIMEVERIFY);
-  w.op(OP.OP_DROP);
-  w.pushPubkey(p.operator_pubkey);
-  w.op(OP.OP_CHECKSIG);
-  w.op(OP.OP_ENDIF);
-  return w.bytes();
+  return {
+    locking_script: w.bytes(),
+    branches: [
+      { name: 'cooperative', locktime: immediate },
+      { name: 'recovery', locktime: absoluteHeight(p.recovery_height) },
+    ],
+  };
+}
+
+/** Locking-script-only convenience. */
+export function buildTableRootLockingScript(p: TableRootParams): Uint8Array {
+  return buildTableRoot(p).locking_script;
 }
