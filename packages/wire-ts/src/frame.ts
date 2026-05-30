@@ -97,7 +97,12 @@ export async function decode(buf: Uint8Array): Promise<{ frame: Frame; consumed:
 }
 
 async function checksumOf(payload: Uint8Array): Promise<Uint8Array> {
+  // Copy into a fresh ArrayBuffer so the BufferSource type-check is
+  // satisfied under TS 5.7+ where Uint8Array carries ArrayBufferLike
+  // (which includes SharedArrayBuffer) rather than plain ArrayBuffer.
   // crypto.subtle is available in browsers and Node 20+.
-  const digest = await crypto.subtle.digest('SHA-256', payload);
+  const buf = new ArrayBuffer(payload.byteLength);
+  new Uint8Array(buf).set(payload);
+  const digest = await crypto.subtle.digest('SHA-256', buf);
   return new Uint8Array(digest, 0, 4);
 }
