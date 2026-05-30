@@ -1,0 +1,35 @@
+{
+  "vector_id": "mental-poker-mvp",
+  "description": "Cross-language conformance inputs for the verifiable distributed shuffle and reveal-proof verification (commitment-based MVP). Each implementation (TS @cardtable/crypto-cards, Go apps/relay-go/pkg/cryptocards) consumes these inputs and produces deterministic hashes; the two outputs MUST agree byte-for-byte. Concrete expected hashes are reproduced inside each language's test as named constants and are the conformance surface — when both sides agree, those constants are locked.",
+  "spec_references": ["spec/card-protocol.md §3, §4, §5", "spec/serialisation.md §5", "docs/adr/001-sha256-counter-prg-for-shuffle.md"],
+  "inputs": {
+    "game_id_hex": "00000000000000000000000000000000000000000000000000000000000000aa",
+    "deck_size": 52,
+    "shuffle_algorithm_version": 1,
+    "players": [
+      {
+        "seat": 0,
+        "player_id_hex": "0101010101010101010101010101010101010101010101010101010101010101",
+        "entropy_hex": "0202020202020202020202020202020202020202020202020202020202020202"
+      },
+      {
+        "seat": 1,
+        "player_id_hex": "0303030303030303030303030303030303030303030303030303030303030303",
+        "entropy_hex": "0404040404040404040404040404040404040404040404040404040404040404"
+      },
+      {
+        "seat": 2,
+        "player_id_hex": "0505050505050505050505050505050505050505050505050505050505050505",
+        "entropy_hex": "0606060606060606060606060606060606060606060606060606060606060606"
+      }
+    ],
+    "reveal_position": 0
+  },
+  "conformance_assertions": [
+    "commitEntropy(entropy_i, player_id_i, game_id) MUST equal hash returned by every conforming impl",
+    "combineEntropy([entropy_0, entropy_1, entropy_2]) (seat-ascending order) MUST be byte-identical across impls",
+    "buildDeckCommitment(combined, 52, 1).shuffled_deck MUST be a permutation of 0..51 byte-identical across impls",
+    "verifyRevealProof(deckCommitment.perPosition[reveal_position].commitment, perPosition[reveal_position]) MUST return true",
+    "verifyRevealProof with a corrupted ordinal MUST return false"
+  ]
+}

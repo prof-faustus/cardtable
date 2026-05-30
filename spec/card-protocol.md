@@ -50,15 +50,20 @@ where the entropies are ordered by ascending seat index (canonical per
 `spec/serialisation.md` §3).
 
 The shuffle is **Fisher-Yates** over the canonical deck using a
-deterministic Keccak-256-based byte stream seeded by `combined`. For
-positions `i = n_cards - 1, ..., 1`, the algorithm draws an integer
-`j` uniformly in `[0, i]` from the stream and swaps positions `i` and
-`j` of the working deck. The shuffle algorithm version is recorded in
-`DeckCommitment.shuffle_algorithm_version`; v1 = `1`.
+deterministic SHA-256-counter-mode byte stream seeded by `combined`
+(per [ADR-001](../docs/adr/001-sha256-counter-prg-for-shuffle.md)).
+For positions `i = n_cards - 1, ..., 1`, the algorithm draws an
+integer `j` uniformly in `[0, i]` from the stream (four bytes
+little-endian, rejection-sampled to remove modulo bias) and swaps
+positions `i` and `j` of the working deck. The shuffle algorithm
+version is recorded in `DeckCommitment.shuffle_algorithm_version`;
+v1 = `1`.
 
 A reference implementation is required to match the test vector
-`spec/test-vectors/reveal-proof.json` byte-for-byte on the
-`shuffled_deck` field.
+`spec/test-vectors/mental-poker.json` byte-for-byte: the Go reference
+`apps/relay-go/pkg/cryptocards` and the TypeScript reference
+`packages/crypto-cards` are pinned to the same hex outputs via their
+`TestCrossLanguageConformance` blocks.
 
 ## 4. Deck commitment
 
