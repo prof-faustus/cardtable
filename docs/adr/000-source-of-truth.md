@@ -8,7 +8,7 @@ Accepted (2026-05-30). Records the starting state of the repository.
 
 The project has two reference documents at the root of the repository:
 
-1. `CLAUDE.md` — a working build spec describing the project identity,
+1. `PROJECT_SPEC.md` — a working build spec describing the project identity,
    coding standards, project structure, technology stack, transaction
    classes, wire protocol, peer-discovery architecture, card object model,
    timeout matrix, data model, Kafka event model, testing strategy,
@@ -37,7 +37,7 @@ apply, in order:
    project structure, build order, what NOT to build, BSV-vs-BTC
    discipline, token-model statements, git workflow, error-handling
    philosophy, logging conventions, test categories, security-model
-   high-level rules), `CLAUDE.md` is authoritative.
+   high-level rules), `PROJECT_SPEC.md` is authoritative.
 
 2. **For substantive protocol claims** (state machine, transaction
    classes, script semantics, timeout semantics, conflict-resolution

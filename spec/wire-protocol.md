@@ -1,6 +1,6 @@
 # Spec: Wire Protocol
 
-> **Status:** authoritative. Aligns with CLAUDE.md §Wire Protocol and
+> **Status:** authoritative. Aligns with PROJECT_SPEC.md §Wire Protocol and
 > Formal Architecture §10 (Networking). Binary frame format; no JSON
 > on the wire.
 

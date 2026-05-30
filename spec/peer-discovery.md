@@ -1,6 +1,6 @@
 # Spec: Peer Discovery
 
-> **Status:** authoritative. Aligns with CLAUDE.md §Peer Discovery
+> **Status:** authoritative. Aligns with PROJECT_SPEC.md §Peer Discovery
 > Architecture and Formal Architecture §10.
 
 ## 1. Two-tier model

@@ -4,11 +4,11 @@ This file tracks which build phase each module of `cardtable` is currently in.
 Update it in the same commit as the phase transition; never let this file lag
 behind the code.
 
-## Build phases (per CLAUDE.md §Build Order)
+## Build phases (per PROJECT_SPEC.md §Build Order)
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | Repo skeleton, CLAUDE.md, Formal Architecture document, .gitignore, LICENSE, empty directories with `.gitkeep` | **complete** |
+| 0 | Repo skeleton, PROJECT_SPEC.md, Formal Architecture document, .gitignore, LICENSE, empty directories with `.gitkeep` | **complete** |
 | 1 | Protocol specification (`spec/`) and `packages/protocol-types` | **complete** |
 | 2 | `packages/state-engine` + `packages/script-templates` (TypeScript) and the Go port at `apps/relay-go/pkg/engine` (Go port deferred) | **complete (TypeScript); Go port deferred to Phase 3+** |
 | 3 | Open-information prototype: minimal browser client + Go relay; table flow without concealed cards | not started |

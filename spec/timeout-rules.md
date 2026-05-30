@@ -1,7 +1,7 @@
 # Spec: Timeout Rules
 
 > **Status:** authoritative. Aligns with Formal Architecture §2.5 (Timeout
-> Model) and CLAUDE.md §Timeout Matrix.
+> Model) and PROJECT_SPEC.md §Timeout Matrix.
 
 ## 1. The general rule
 

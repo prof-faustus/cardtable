@@ -1,4 +1,4 @@
-# CLAUDE.md — Dealerless Distributed Card-Game Application
+# PROJECT_SPEC.md — Dealerless Distributed Card-Game Application
 
 ## Project Identity
 
@@ -118,7 +118,7 @@ Local:       IndexedDB (client-side encrypted card vault and transcript cache)
 
 ```
 cardtable/
-├── CLAUDE.md                          # This file
+├── PROJECT_SPEC.md                          # This file
 ├── README.md                          # Project overview and quickstart
 │
 ├── spec/                              # Protocol specification (source of truth)

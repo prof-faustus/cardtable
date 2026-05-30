@@ -5,7 +5,7 @@
 
 
 > **Research code, in early scaffolding.** This repository implements the
-> protocol specified in [`CLAUDE.md`](CLAUDE.md) and the
+> protocol specified in [`PROJECT_SPEC.md`](PROJECT_SPEC.md) and the
 > [Formal Architecture document](Formal_Architecture_Dealerless_Card_Game_BSV_v1.docx)
 > ([plaintext extract](docs/Formal_Architecture.txt)).
 > Per the project's token model, tokens carry **no external monetary value**
@@ -26,21 +26,21 @@ First production target: **In-Between** (Acey-Deucey).
 
 | File | Role |
 |---|---|
-| [`CLAUDE.md`](CLAUDE.md) | Working build spec; coding standards; project structure; build order; do-not lists |
+| [`PROJECT_SPEC.md`](PROJECT_SPEC.md) | Working build spec; coding standards; project structure; build order; do-not lists |
 | [`Formal_Architecture_Dealerless_Card_Game_BSV_v1.docx`](Formal_Architecture_Dealerless_Card_Game_BSV_v1.docx) | Formal architecture: product, protocol, data model, threat model, transaction model, APIs, implementation workstreams |
 | [`docs/Formal_Architecture.txt`](docs/Formal_Architecture.txt) | Plaintext extract of the DOCX, for `grep` and code-search |
 
-Where the two disagree, `CLAUDE.md` rules of operation override and the
+Where the two disagree, `PROJECT_SPEC.md` rules of operation override and the
 Formal Architecture's substantive claims override. Disagreements between the
 two are tracked in `docs/adr/`.
 
-## Stack (per CLAUDE.md §Technology Stack)
+## Stack (per PROJECT_SPEC.md §Technology Stack)
 
 - **Client:** TypeScript (strict), React 18, Vite, Zustand, Dexie, Web Crypto, BSV TypeScript SDK
 - **Backend:** Go 1.22+, WebSocket relay, Aerospike, Kafka, BSV Go SDK
 - **Out of scope:** anything BTC-specific (Lightning, Taproot, SegWit, BTC opcode limits), Postgres/Redis for game state, ORM, GraphQL, server-managed game state
 
-## Build phases (per CLAUDE.md §Build Order)
+## Build phases (per PROJECT_SPEC.md §Build Order)
 
 1. **Spec + protocol-types** — write `spec/`, the `protocol-types` package
 2. **State engine + script templates** — deterministic rules + BSV script construction
@@ -52,11 +52,11 @@ two are tracked in `docs/adr/`.
 This repository is at **Phase 0** (skeleton only) at the time of this
 commit. Subsequent commits will fill each phase in turn.
 
-## Repository layout (per CLAUDE.md §Project Structure)
+## Repository layout (per PROJECT_SPEC.md §Project Structure)
 
 ```
 cardtable/
-├── CLAUDE.md, README.md, LICENSE
+├── PROJECT_SPEC.md, README.md, LICENSE
 ├── Formal_Architecture_Dealerless_Card_Game_BSV_v1.docx
 ├── spec/                # Protocol specification (source of truth for protocol behaviour)
 ├── packages/            # Shared TypeScript packages
@@ -77,7 +77,7 @@ cardtable/
 Empty subdirectories are kept tracked with a `.gitkeep` file until the
 corresponding phase fills them.
 
-## Critical rules (excerpted from CLAUDE.md, repeated here for visibility)
+## Critical rules (excerpted from PROJECT_SPEC.md, repeated here for visibility)
 
 - **BSV ≠ BTC.** No BTC opcode limits, no Lightning, no Taproot, no SegWit, no SPV
   via BTC libraries. Use the BSV TypeScript / Go SDKs only.
@@ -92,5 +92,5 @@ corresponding phase fills them.
 ## How to contribute
 
 Until Phase 1 lands, there is no buildable code in this repository. Read
-`CLAUDE.md` and the Formal Architecture document end-to-end before
+`PROJECT_SPEC.md` and the Formal Architecture document end-to-end before
 proposing any change.

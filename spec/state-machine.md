@@ -142,7 +142,7 @@ ReplayTranscript(transcript, ruleSet):
 - **Out-of-order transcript replay.** Replay rejects any transaction whose
   `priorStateHash` does not match the engine's current state hash.
 - **Unknown serialisation version.** Replay rejects rather than guessing.
-  Recovery branch becomes the only available exit (per CLAUDE.md §10).
+  Recovery branch becomes the only available exit (per PROJECT_SPEC.md §10).
 
 ## 9. Conformance
 

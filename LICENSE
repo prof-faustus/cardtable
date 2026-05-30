@@ -26,7 +26,7 @@ RESEARCH / DEVELOPMENT NOTICE — NOT A REGULATED GAMBLING SERVICE
 
 This is a reference implementation of an academic / research protocol for a
 dealerless, peer-to-peer card-game state machine on Bitcoin SV (post-Genesis).
-Per the project's CLAUDE.md (rule "Token Model"), tokens used in this system
+Per the project's PROJECT_SPEC.md (rule "Token Model"), tokens used in this system
 carry NO external monetary value. The application is NOT a regulated gambling
 service, NOT a casino product, and NOT a wallet for real-money play. Do not
 deploy it as one without obtaining your own legal and regulatory advice in

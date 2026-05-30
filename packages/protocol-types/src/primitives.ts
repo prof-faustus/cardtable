@@ -182,7 +182,7 @@ export function asPlayerId(hex: string): PlayerId {
 
 /**
  * A {@link Result} represents either a successful value of type `T` or
- * an error of type `E`. Per CLAUDE.md §Coding Standards (TypeScript), all
+ * an error of type `E`. Per PROJECT_SPEC.md §Coding Standards (TypeScript), all
  * fallible protocol operations return `Result` rather than throwing.
  */
 export type Result<T, E = ProtocolError> =

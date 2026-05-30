@@ -1,7 +1,7 @@
 /**
  * Public API of @cardtable/protocol-types.
  *
- * Per CLAUDE.md §Coding Standards: named exports only, no default
+ * Per PROJECT_SPEC.md §Coding Standards: named exports only, no default
  * exports, barrels only at the package root.
  */
 

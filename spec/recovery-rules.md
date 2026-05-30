@@ -69,7 +69,7 @@ require the card face to be revealed (per
 and unrecoverable after recovery, which is acceptable: the cards have
 zero out-of-session value.
 
-This is one of the open proof obligations (CLAUDE.md §Open Proof
+This is one of the open proof obligations (PROJECT_SPEC.md §Open Proof
 Obligations item 3).
 
 ## 6. Conformance

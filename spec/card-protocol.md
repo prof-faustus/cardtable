@@ -108,7 +108,7 @@ procedure has two routes:
 
 Encryption is via a layered protocol (mental-poker-style); the exact
 construction and its security proof are open proof obligations
-(CLAUDE.md §Open Proof Obligations item 1). Phase 4+ work.
+(PROJECT_SPEC.md §Open Proof Obligations item 1). Phase 4+ work.
 
 ## 7. Fold without reveal (extended)
 
