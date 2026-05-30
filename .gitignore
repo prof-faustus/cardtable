@@ -11,6 +11,7 @@ coverage/
 
 # Vite
 .vite/
+dist-app/
 
 # Go
 *.exe

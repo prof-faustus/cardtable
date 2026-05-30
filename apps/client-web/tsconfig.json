@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "composite": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "moduleResolution": "bundler",
+    "noEmit": false,
+    "types": ["vite/client"]
+  },
+  "references": [
+    { "path": "../../packages/protocol-types" },
+    { "path": "../../packages/state-engine" },
+    { "path": "../../packages/wire-ts" }
+  ],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["dist", "node_modules", "__tests__"]
+}
