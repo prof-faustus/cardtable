@@ -17,6 +17,42 @@ import {
   OP,
   opNumber,
 } from '../src/index.js';
+
+/**
+ * A real opcode walker — skips push-payload bytes so opcode-count
+ * assertions are accurate. (Naive byte-scan misclassifies hash bytes
+ * in pushdata as opcodes.)
+ */
+function listOpcodes(script: Uint8Array): number[] {
+  const out: number[] = [];
+  let i = 0;
+  while (i < script.length) {
+    const op = script[i];
+    if (op === undefined) break;
+    out.push(op);
+    i++;
+    if (op >= 0x01 && op <= 0x4b) {
+      i += op; // direct push of N bytes
+    } else if (op === 0x4c) {
+      const n = script[i];
+      if (n === undefined) break;
+      i += 1 + n;
+    } else if (op === 0x4d) {
+      const lo = script[i];
+      const hi = script[i + 1];
+      if (lo === undefined || hi === undefined) break;
+      i += 2 + (lo | (hi << 8));
+    } else if (op === 0x4e) {
+      const a = script[i];
+      const b = script[i + 1];
+      const c = script[i + 2];
+      const d = script[i + 3];
+      if (a === undefined || b === undefined || c === undefined || d === undefined) break;
+      i += 4 + ((a | (b << 8) | (c << 16) | (d << 24)) >>> 0);
+    }
+  }
+  return out;
+}
 import {
   asBlockHeight,
   asHash256,
@@ -142,10 +178,10 @@ describe('table-root template', () => {
       operator_pubkey: PUB_C,
       recovery_height: HEIGHT,
     });
-    const bytes = Array.from(s);
-    expect(bytes).toContain(OP.OP_CHECKMULTISIG);
-    expect(bytes).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
-    expect(bytes).toContain(OP.OP_CHECKSIG);
+    const ops = listOpcodes(s);
+    expect(ops).toContain(OP.OP_CHECKMULTISIG);
+    expect(ops).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
+    expect(ops).toContain(OP.OP_CHECKSIG);
   });
   it('rejects 0 pubkeys', () => {
     expect(() =>
@@ -166,10 +202,10 @@ describe('stake-lock template', () => {
       expected_settlement_hash: HASH_1,
       recovery_height: HEIGHT,
     });
-    const bytes = Array.from(s);
-    expect(bytes).toContain(OP.OP_CHECKMULTISIG);
-    expect(bytes).toContain(OP.OP_HASH256);
-    expect(bytes).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
+    const ops = listOpcodes(s);
+    expect(ops).toContain(OP.OP_CHECKMULTISIG);
+    expect(ops).toContain(OP.OP_HASH256);
+    expect(ops).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
   });
   it('deterministic', () => {
     const a = buildStakeLockScript({
@@ -197,10 +233,10 @@ describe('pot-lock template', () => {
       refund_pubkey: PUB_B,
       recovery_height: HEIGHT,
     });
-    const bytes = Array.from(s);
-    expect(bytes).toContain(OP.OP_CHECKMULTISIG);
-    expect(bytes).toContain(OP.OP_SHA256);
-    expect(bytes).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
+    const ops = listOpcodes(s);
+    expect(ops).toContain(OP.OP_CHECKMULTISIG);
+    expect(ops).toContain(OP.OP_SHA256);
+    expect(ops).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
   });
 });
 
@@ -213,11 +249,11 @@ describe('entropy-commit template', () => {
       decision_timeout_blocks: 6,
       recovery_height: HEIGHT,
     });
-    const bytes = Array.from(s);
-    expect(bytes).toContain(OP.OP_SHA256);
-    expect(bytes).toContain(OP.OP_CHECKSEQUENCEVERIFY);
-    expect(bytes).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
-    expect(bytes).toContain(OP.OP_CHECKMULTISIG);
+    const ops = listOpcodes(s);
+    expect(ops).toContain(OP.OP_SHA256);
+    expect(ops).toContain(OP.OP_CHECKSEQUENCEVERIFY);
+    expect(ops).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
+    expect(ops).toContain(OP.OP_CHECKMULTISIG);
   });
   it('degenerates safely with empty other_pubkeys (always-fail cooperative)', () => {
     const s = buildEntropyCommitScript({
@@ -227,8 +263,8 @@ describe('entropy-commit template', () => {
       decision_timeout_blocks: 6,
       recovery_height: HEIGHT,
     });
-    const bytes = Array.from(s);
-    expect(bytes).toContain(OP.OP_RETURN); // cooperative branch is poisoned
+    const ops = listOpcodes(s);
+    expect(ops).toContain(OP.OP_RETURN); // cooperative branch is poisoned
   });
 });
 
@@ -240,10 +276,10 @@ describe('card-custody template', () => {
       original_funder_pubkey: PUB_B,
       recovery_height: HEIGHT,
     });
-    const bytes = Array.from(s);
-    expect(bytes).toContain(OP.OP_HASH256);
-    expect(bytes).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
-    expect(bytes).toContain(OP.OP_CHECKSIG);
+    const ops = listOpcodes(s);
+    expect(ops).toContain(OP.OP_HASH256);
+    expect(ops).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
+    expect(ops).toContain(OP.OP_CHECKSIG);
   });
 });
 
@@ -257,12 +293,12 @@ describe('round-state template', () => {
       decision_timeout_blocks: 6,
       recovery_height: HEIGHT,
     });
-    const bytes = Array.from(s);
-    expect(bytes).toContain(OP.OP_CHECKSEQUENCEVERIFY);
-    expect(bytes).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
-    // Two CHECKMULTISIG calls (timeout branch + recovery branch).
-    expect(bytes.filter((b) => b === OP.OP_CHECKMULTISIG).length).toBe(2);
-    expect(bytes.filter((b) => b === OP.OP_HASH256).length).toBe(2); // successor + timeout templates
+    // Walk opcodes properly so push-payload bytes are not miscounted.
+    const ops = listOpcodes(s);
+    expect(ops).toContain(OP.OP_CHECKSEQUENCEVERIFY);
+    expect(ops).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
+    expect(ops.filter((b) => b === OP.OP_CHECKMULTISIG).length).toBe(2);
+    expect(ops.filter((b) => b === OP.OP_HASH256).length).toBe(2);
   });
 });
 
@@ -274,7 +310,7 @@ describe('settle-claim, fold-surrender, reveal-proof, timeout-branch, recovery',
     });
     expect(s[0]).toBe(OP.OP_HASH256);
     expect(s[s.length - 1]).toBe(OP.OP_CHECKSIG);
-    expect(Array.from(s)).toContain(OP.OP_EQUALVERIFY);
+    expect(listOpcodes(s)).toContain(OP.OP_EQUALVERIFY);
   });
 
   it('fold-surrender is CLTV + CHECKSIG only', () => {
@@ -282,12 +318,13 @@ describe('settle-claim, fold-surrender, reveal-proof, timeout-branch, recovery',
       original_funder_pubkey: PUB_A,
       recovery_height: HEIGHT,
     });
-    const bytes = Array.from(s);
-    expect(bytes).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
-    expect(bytes).toContain(OP.OP_DROP);
-    expect(bytes).toContain(OP.OP_CHECKSIG);
-    // No HASH256 — face is not revealed.
-    expect(bytes).not.toContain(OP.OP_HASH256);
+    // Walk opcodes properly so push-payload bytes do not masquerade as opcodes.
+    const ops = listOpcodes(s);
+    expect(ops).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
+    expect(ops).toContain(OP.OP_DROP);
+    expect(ops).toContain(OP.OP_CHECKSIG);
+    // No HASH256 opcode — face is not revealed by a fold.
+    expect(ops).not.toContain(OP.OP_HASH256);
   });
 
   it('reveal-proof verifies HASH256 binding + signer', () => {
@@ -296,7 +333,7 @@ describe('settle-claim, fold-surrender, reveal-proof, timeout-branch, recovery',
       signer_pubkey: PUB_A,
     });
     expect(s[0]).toBe(OP.OP_HASH256);
-    expect(Array.from(s)).toContain(OP.OP_EQUALVERIFY);
+    expect(listOpcodes(s)).toContain(OP.OP_EQUALVERIFY);
     expect(s[s.length - 1]).toBe(OP.OP_CHECKSIG);
   });
 
@@ -306,9 +343,9 @@ describe('settle-claim, fold-surrender, reveal-proof, timeout-branch, recovery',
       timeout_template_hash: HASH_1,
       authoriser_pubkeys: [PUB_A, PUB_B],
     });
-    const bytes = Array.from(s);
-    expect(bytes).toContain(OP.OP_CHECKSEQUENCEVERIFY);
-    expect(bytes).toContain(OP.OP_CHECKMULTISIG);
+    const ops = listOpcodes(s);
+    expect(ops).toContain(OP.OP_CHECKSEQUENCEVERIFY);
+    expect(ops).toContain(OP.OP_CHECKMULTISIG);
   });
 
   it('recovery-branch is CLTV-pubkey-CHECKSIG', () => {
@@ -316,10 +353,10 @@ describe('settle-claim, fold-surrender, reveal-proof, timeout-branch, recovery',
       recovery_height: HEIGHT,
       signer_pubkey: PUB_A,
     });
-    const bytes = Array.from(s);
-    expect(bytes).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
-    expect(bytes).toContain(OP.OP_DROP);
-    expect(bytes[bytes.length - 1]).toBe(OP.OP_CHECKSIG);
+    const ops = listOpcodes(s);
+    expect(ops).toContain(OP.OP_CHECKLOCKTIMEVERIFY);
+    expect(ops).toContain(OP.OP_DROP);
+    expect(s[s.length - 1]).toBe(OP.OP_CHECKSIG);
   });
 });
 

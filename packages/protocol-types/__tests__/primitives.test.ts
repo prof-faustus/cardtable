@@ -52,7 +52,7 @@ describe('asSeat', () => {
 });
 
 describe('asBlockHeight', () => {
-  it('accepts heights below BIP113 threshold', () => {
+  it('accepts heights below the nLockTime height/timestamp threshold', () => {
     expect(asBlockHeight(0)).toBe(0);
     expect(asBlockHeight(499_999_999)).toBe(499_999_999);
   });

@@ -183,7 +183,8 @@ function makePass(seat: Seat): PassAction {
     round_number: asRoundNumber(0),
     referenced_state_hash: asHash256('0'.repeat(64)),
     action_type: 'Pass',
-    action_nonce: asActionNonce(('p' + seat.toString(16)).padStart(64, '0')),
+    // 'a' (the digit-letter "a" = 10) is hex; 'p' is not. Keep it hex.
+    action_nonce: asActionNonce(('a' + seat.toString(16)).padStart(64, '0')),
     acting_player_seat: seat,
     authorising_signature: 'sig',
     successor_state_commitment: asHash256('0'.repeat(64)),
@@ -334,13 +335,21 @@ describe('timeout-refund vector', () => {
 describe('settlement vector — classifier', () => {
   const rs = makeRuleSet();
   it('classifies WIN when third card is strictly between', () => {
-    const cards = [cardFromOrdinal(3), cardFromOrdinal(20), cardFromOrdinal(7)];
+    // ordinals %13: visible 3 and 7 (rank 5 and rank 9). Third must be in (3,7) strict.
+    // Pick ordinal 5 (rank 7 of clubs) — strict between.
+    const cards = [cardFromOrdinal(3), cardFromOrdinal(20), cardFromOrdinal(5)];
     const c = classifyInBetweenRound(cards);
     expect(c.outcome).toBe('win');
   });
   it('classifies LOSS when third card is outside (above)', () => {
+    // ordinals %13: 3 and 7; third rank-ord 11 is above the high end -> loss.
     const cards = [cardFromOrdinal(3), cardFromOrdinal(20), cardFromOrdinal(11)];
-    // ordinals %13: 3, 7, 11; 11 > 7 high so loss
+    const c = classifyInBetweenRound(cards);
+    expect(c.outcome).toBe('loss');
+  });
+  it('classifies LOSS when third card matches a visible (open interval is strict)', () => {
+    // Third equals upper visible -> not strictly between -> loss.
+    const cards = [cardFromOrdinal(3), cardFromOrdinal(20), cardFromOrdinal(7)];
     const c = classifyInBetweenRound(cards);
     expect(c.outcome).toBe('loss');
   });

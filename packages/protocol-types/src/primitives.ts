@@ -43,7 +43,7 @@ export type Outpoint = string & { readonly [__brand]: 'Outpoint' };
 /** Satoshi value (non-negative integer). */
 export type Satoshis = number & { readonly [__brand]: 'Satoshis' };
 
-/** Block height (non-negative integer, < 5e8 per BIP113). */
+/** Block height (non-negative integer, < 5e8 for nLockTime height-interpretation). */
 export type BlockHeight = number & { readonly [__brand]: 'BlockHeight' };
 
 /** Action nonce — opaque 32-byte identifier per (player, state) preventing replay. */
@@ -136,8 +136,10 @@ export function asSatoshis(n: number): Satoshis {
 
 /**
  * Construct a {@link BlockHeight} from a non-negative integer below the
- * BIP113 timestamp threshold.
- * @throws if outside [0, 5_000_000_00).
+ * nLockTime height/timestamp interpretation threshold (5e8 — values at or
+ * above this are interpreted as Unix timestamps, not block heights, by
+ * the BSV consensus rules inherited from the original protocol).
+ * @throws if outside [0, 500_000_000).
  */
 export function asBlockHeight(n: number): BlockHeight {
   if (!Number.isSafeInteger(n) || n < 0 || n >= 500_000_000) {
