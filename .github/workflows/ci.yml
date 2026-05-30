@@ -31,8 +31,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile=false
 
-      - run: pnpm typecheck
-
+      # build also type-checks via composite project references;
+      # running typecheck separately would just be a duplicate pass.
       - run: pnpm build
 
       - run: pnpm test

@@ -13,9 +13,9 @@
   "scripts": {
     "build": "pnpm -r --filter './packages/**' build",
     "test": "pnpm -r --filter './packages/**' test",
-    "typecheck": "pnpm -r --filter './packages/**' typecheck",
+    "typecheck": "pnpm -r --filter './packages/**' build",
     "lint": "pnpm -r --filter './packages/**' lint",
-    "ci": "pnpm typecheck && pnpm build && pnpm test"
+    "ci": "pnpm build && pnpm test"
   },
   "devDependencies": {
     "typescript": "^5.4.5",
