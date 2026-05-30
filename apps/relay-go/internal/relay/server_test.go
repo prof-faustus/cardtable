@@ -106,6 +106,22 @@ func TestActionAcceptedAndFannedOut(t *testing.T) {
 	defer observer.Close()
 	observer.SetDeadline(time.Now().Add(3 * time.Second))
 
+	// Synchronise: the observer must be fully subscribed on the
+	// server side before the sender's Action is dispatched, otherwise
+	// the broadcast misses it. A ping-pong round-trip proves the
+	// server-side handler goroutine has run far enough to register
+	// the observer's subscription with the hub.
+	if _, err := wire.Encode(observer, wire.Frame{Version: wire.Version1_0, Type: wire.MsgPing, Payload: []byte("sync")}); err != nil {
+		t.Fatalf("observer ping: %v", err)
+	}
+	pong, err := wire.Decode(observer)
+	if err != nil {
+		t.Fatalf("observer pong decode: %v", err)
+	}
+	if pong.Type != wire.MsgPong {
+		t.Fatalf("observer pong: want MsgPong, got type=%#x", pong.Type)
+	}
+
 	// Build a valid Join action.
 	seat := types.Seat(0)
 	join := types.SignedAction{
