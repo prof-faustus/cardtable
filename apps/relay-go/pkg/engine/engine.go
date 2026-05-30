@@ -155,15 +155,17 @@ func applyJoin(state types.RoundState, action types.SignedAction, ruleSet types.
 	}
 	next := cloneState(state)
 	next.Players = append(next.Players, types.PlayerState{
-		Seat:                seat,
-		PlayerId:            types.PlayerId(action.PlayerPubkey),
-		ValueSigningPubkey:  action.PlayerPubkey,
-		ParticipationStatus: types.StatusJoined,
-		StakeAtRisk:         action.StakeAmount,
-		EntropyCommitted:    false,
-		EntropyRevealed:     false,
-		ConcealedCardRefs:   []types.Outpoint{},
-		DefaultPreferences:  map[string]string{},
+		Seat:                  seat,
+		PlayerId:              types.PlayerId(action.PlayerPubkey),
+		ValueSigningPubkey:    action.PlayerPubkey,
+		ParticipationStatus:   types.StatusJoined,
+		StakeAtRisk:           action.StakeAmount,
+		EntropyCommitted:      false,
+		EntropyCommitmentHash: "",
+		EntropyRevealed:       false,
+		EntropyValue:          "",
+		ConcealedCardRefs:     []types.Outpoint{},
+		DefaultPreferences:    map[string]string{},
 	})
 	hash := state.StateHash
 	next.PriorStateHash = &hash
@@ -204,6 +206,7 @@ func applyEntropyCommit(state types.RoundState, action types.SignedAction) (type
 	next := cloneState(state)
 	next.Players = cloneSeats(state.Players)
 	next.Players[idx].EntropyCommitted = true
+	next.Players[idx].EntropyCommitmentHash = action.CommitmentHash
 	allCommitted := true
 	for _, p := range next.Players {
 		if !p.EntropyCommitted {
@@ -243,6 +246,7 @@ func applyEntropyReveal(state types.RoundState, action types.SignedAction) (type
 	next := cloneState(state)
 	next.Players = cloneSeats(state.Players)
 	next.Players[idx].EntropyRevealed = true
+	next.Players[idx].EntropyValue = action.Entropy
 	next.Players[idx].ParticipationStatus = types.StatusActive
 	allRevealed := true
 	for _, p := range next.Players {

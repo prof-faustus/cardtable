@@ -23,8 +23,10 @@ type PlayerState struct {
 	ParticipationStatus ParticipationStatus `json:"participation_status"`
 	StakeAtRisk         Satoshis            `json:"stake_at_risk"`
 	StakeOutpoint       Outpoint            `json:"stake_outpoint,omitempty"`
-	EntropyCommitted    bool                `json:"entropy_committed"`
-	EntropyRevealed     bool                `json:"entropy_revealed"`
+	EntropyCommitted      bool      `json:"entropy_committed"`
+	EntropyCommitmentHash Hash256   `json:"entropy_commitment_hash,omitempty"`
+	EntropyRevealed       bool      `json:"entropy_revealed"`
+	EntropyValue          Hash256   `json:"entropy_value,omitempty"`
 	ConcealedCardRefs   []Outpoint          `json:"concealed_card_refs"`
 	DefaultPreferences  map[string]string   `json:"default_preferences"`
 }

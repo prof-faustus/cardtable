@@ -5,7 +5,10 @@
     "outDir": "./dist",
     "composite": true
   },
-  "references": [{ "path": "../protocol-types" }],
+  "references": [
+    { "path": "../protocol-types" },
+    { "path": "../crypto-cards" }
+  ],
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules", "__tests__"]
 }

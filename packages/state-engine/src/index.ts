@@ -24,3 +24,5 @@ export { pickConflictWinner } from './ordering.js';
 export type { CandidateSnapshot } from './ordering.js';
 
 export { replay, chainsFrom } from './replay.js';
+
+export { verifyAndApply } from './verify.js';

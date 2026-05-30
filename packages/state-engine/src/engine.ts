@@ -81,6 +81,8 @@ export function initialState(
     decision_deadline_block_height: null,
     recovery_deadline_block_height: recovery_deadline,
     successor_template_hashes: [],
+    combined_entropy: null,
+    deck_commitment_hash: null,
     prior_state_hash: null,
     state_hash: ZERO_HASH, // computed by callers; not used internally
   };
@@ -213,7 +215,9 @@ function applyJoin(
         participation_status: 'joined',
         stake_at_risk: action.stake_amount,
         entropy_committed: false,
+        entropy_commitment_hash: null,
         entropy_revealed: false,
+        entropy_value: null,
         concealed_card_refs: [],
         default_preferences: {},
       },
@@ -272,7 +276,7 @@ function applyEntropyCommit(
 
   const players = [
     ...state.players.slice(0, idx),
-    { ...existing, entropy_committed: true },
+    { ...existing, entropy_committed: true, entropy_commitment_hash: action.commitment_hash },
     ...state.players.slice(idx + 1),
   ];
 
@@ -315,7 +319,12 @@ function applyEntropyReveal(
 
   const players = [
     ...state.players.slice(0, idx),
-    { ...existing, entropy_revealed: true, participation_status: 'active' as const },
+    {
+      ...existing,
+      entropy_revealed: true,
+      entropy_value: action.entropy,
+      participation_status: 'active' as const,
+    },
     ...state.players.slice(idx + 1),
   ];
   const allRevealed = players.every((p) => p.entropy_revealed);

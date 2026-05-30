@@ -71,6 +71,19 @@ export interface RoundState {
   readonly recovery_deadline_block_height: BlockHeight | null;
   /** Set of canonical-template hashes that name the legal successors. */
   readonly successor_template_hashes: readonly Hash256[];
+  /**
+   * Combined-entropy seed for the deck shuffle. Null until every seated
+   * player's EntropyReveal has been verified; deterministically derived
+   * thereafter via `crypto-cards.combineEntropy`.
+   */
+  readonly combined_entropy: Hash256 | null;
+  /**
+   * Deck commitment hash anchoring the shuffled deck. Null until S5;
+   * set by the S4 -> S5 transition once every reveal is verified.
+   * Card-reveal proofs at S6 / S7 / S9 are verified against this
+   * commitment.
+   */
+  readonly deck_commitment_hash: Hash256 | null;
   /** Hash of the parent state in the transition tree; null at the root. */
   readonly prior_state_hash: Hash256 | null;
   /**

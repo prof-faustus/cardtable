@@ -52,6 +52,8 @@ type RoundState struct {
 	DecisionDeadlineBlockHeight *BlockHeight   `json:"decision_deadline_block_height"`
 	RecoveryDeadlineBlockHeight *BlockHeight   `json:"recovery_deadline_block_height"`
 	SuccessorTemplateHashes     []Hash256      `json:"successor_template_hashes"`
+	CombinedEntropy             Hash256        `json:"combined_entropy,omitempty"`
+	DeckCommitmentHash          Hash256        `json:"deck_commitment_hash,omitempty"`
 	PriorStateHash              *Hash256       `json:"prior_state_hash"`
 	StateHash                   Hash256        `json:"state_hash"`
 }

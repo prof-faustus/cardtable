@@ -284,7 +284,9 @@ describe('timeout-refund vector', () => {
           participation_status: 'active',
           stake_at_risk: asSatoshis(1000),
           entropy_committed: true,
+          entropy_commitment_hash: null,
           entropy_revealed: true,
+          entropy_value: null,
           concealed_card_refs: [],
           default_preferences: {},
         },
@@ -296,6 +298,8 @@ describe('timeout-refund vector', () => {
       decision_deadline_block_height: asBlockHeight(106),
       recovery_deadline_block_height: RECOVERY_DEADLINE,
       successor_template_hashes: [],
+      combined_entropy: null,
+      deck_commitment_hash: null,
       prior_state_hash: null,
       state_hash: STATE_HASH,
     };
@@ -323,6 +327,8 @@ describe('timeout-refund vector', () => {
       decision_deadline_block_height: asBlockHeight(200),
       recovery_deadline_block_height: RECOVERY_DEADLINE,
       successor_template_hashes: [],
+      combined_entropy: null,
+      deck_commitment_hash: null,
       prior_state_hash: null,
       state_hash: STATE_HASH,
     };
@@ -417,6 +423,8 @@ describe('eligibility', () => {
       decision_deadline_block_height: asBlockHeight(200),
       recovery_deadline_block_height: asBlockHeight(400),
       successor_template_hashes: [],
+      combined_entropy: null,
+      deck_commitment_hash: null,
       prior_state_hash: null,
       state_hash: STATE_HASH,
     };
@@ -441,6 +449,8 @@ describe('eligibility', () => {
       decision_deadline_block_height: asBlockHeight(200),
       recovery_deadline_block_height: asBlockHeight(400),
       successor_template_hashes: [],
+      combined_entropy: null,
+      deck_commitment_hash: null,
       prior_state_hash: null,
       state_hash: STATE_HASH,
     };

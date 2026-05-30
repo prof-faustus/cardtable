@@ -5,7 +5,7 @@
  * spec and test vectors.
  */
 
-import type { Outpoint, PlayerId, Pubkey33, Satoshis, Seat } from './primitives.js';
+import type { Hash256, Outpoint, PlayerId, Pubkey33, Satoshis, Seat } from './primitives.js';
 
 /**
  * Participation lifecycle status for one player in one session.
@@ -47,8 +47,20 @@ export interface PlayerState {
   readonly stake_outpoint?: Outpoint;
   /** Has this player committed entropy at S3 ENTROPY_COMMIT? */
   readonly entropy_committed: boolean;
+  /**
+   * The hash committed in the EntropyCommit action — null until that
+   * action lands. On EntropyReveal, the verification wrapper consults
+   * this field; the reveal is rejected if the recomputed hash differs.
+   */
+  readonly entropy_commitment_hash: Hash256 | null;
   /** Has this player revealed entropy at S4 ENTROPY_REVEAL? */
   readonly entropy_revealed: boolean;
+  /**
+   * The plaintext entropy revealed by this player — null until that
+   * action lands. Stored so honest engines can reproduce the combined
+   * entropy and the deck commitment on the S4 -> S5 transition.
+   */
+  readonly entropy_value: Hash256 | null;
   /** Concealed-card UTXOs held by this player (extended model only). */
   readonly concealed_card_refs: readonly Outpoint[];
   /** Per-state default-action preferences chosen at session start. */
