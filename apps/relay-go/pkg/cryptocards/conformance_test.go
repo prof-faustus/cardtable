@@ -5,13 +5,21 @@ import (
 	"testing"
 )
 
+// Canonical hex values pinned by the cross-language conformance run.
+// The TypeScript reference at packages/crypto-cards asserts the same
+// strings; both implementations MUST agree on every constant below.
+// If either side disagrees, the protocol has diverged and CI fails.
+const (
+	expectedFirstShuffledOrdinal = 6
+	expectedCommitmentSeat0      = "3df87bf0050b68c9991f0f297a393f3bd1c60b9fd14f46759472798b03879f56"
+	expectedCombinedEntropy      = "d51fb438af0eff4de957ccf3c3378c712228d937939c74251c5bcae0760ab380"
+	expectedDeckCommitmentHash   = "13b01e0dcbbaa3e886171f0a0f006b9fcaabab6197660270523e73900fb45328"
+)
+
 // TestCrossLanguageConformance pins the byte-level outputs of the
-// reference Go implementation. The TypeScript implementation at
-// packages/crypto-cards exercises the same inputs and asserts the
-// same hex strings (see packages/crypto-cards/__tests__/conformance.test.ts).
-//
-// When both languages agree on every line of this block, the
-// mental-poker MVP is conformance-bound.
+// reference Go implementation against the TypeScript reference at
+// packages/crypto-cards. When both languages agree on every constant
+// above, the mental-poker MVP is conformance-bound.
 func TestCrossLanguageConformance(t *testing.T) {
 	v := loadVector(t)
 
@@ -21,44 +29,32 @@ func TestCrossLanguageConformance(t *testing.T) {
 	}
 	gameId := mustHex(t, v.Inputs.GameIdHex)
 
-	// Per-player commitments.
-	wantCommitments := []string{
-		// Filled in by the reference run; both sides MUST agree.
-		commitHex(t, entropies[0], mustHex(t, v.Inputs.Players[0].PlayerIdHex), gameId),
-		commitHex(t, entropies[1], mustHex(t, v.Inputs.Players[1].PlayerIdHex), gameId),
-		commitHex(t, entropies[2], mustHex(t, v.Inputs.Players[2].PlayerIdHex), gameId),
-	}
-	for i := range wantCommitments {
-		if len(wantCommitments[i]) != 64 {
-			t.Errorf("commitment %d: want 64 hex chars, got %d", i, len(wantCommitments[i]))
-		}
+	gotCommitSeat0 := commitHex(t, entropies[0], mustHex(t, v.Inputs.Players[0].PlayerIdHex), gameId)
+	if gotCommitSeat0 != expectedCommitmentSeat0 {
+		t.Errorf("commitment_seat_0:\n  want %s\n  got  %s", expectedCommitmentSeat0, gotCommitSeat0)
 	}
 
 	combined, err := CombineEntropy(entropies)
 	if err != nil {
 		t.Fatalf("CombineEntropy: %v", err)
 	}
-	combinedHex := hex.EncodeToString(combined)
-	if len(combinedHex) != 64 {
-		t.Errorf("combined: want 64 hex chars, got %d", len(combinedHex))
+	gotCombined := hex.EncodeToString(combined)
+	if gotCombined != expectedCombinedEntropy {
+		t.Errorf("combined_entropy:\n  want %s\n  got  %s", expectedCombinedEntropy, gotCombined)
 	}
 
 	dc, err := BuildDeckCommitment(combined, v.Inputs.DeckSize, v.Inputs.ShuffleAlgorithmVersion)
 	if err != nil {
 		t.Fatalf("BuildDeckCommitment: %v", err)
 	}
-	deckHashHex := hex.EncodeToString(dc.DeckCommitmentHash)
-	if len(deckHashHex) != 64 {
-		t.Errorf("deck hash: want 64 hex chars, got %d", len(deckHashHex))
+	gotDeckHash := hex.EncodeToString(dc.DeckCommitmentHash)
+	if gotDeckHash != expectedDeckCommitmentHash {
+		t.Errorf("deck_commitment_hash:\n  want %s\n  got  %s", expectedDeckCommitmentHash, gotDeckHash)
 	}
 
-	// First shuffled card is the only concrete published expectation —
-	// every conforming implementation must agree on its value. The
-	// TypeScript side asserts the same number.
-	t.Logf("first_shuffled_ordinal_go=%d", dc.ShuffledDeck[0])
-	t.Logf("commitment_seat_0_go=%s", wantCommitments[0])
-	t.Logf("combined_entropy_go=%s", combinedHex)
-	t.Logf("deck_commitment_hash_go=%s", deckHashHex)
+	if dc.ShuffledDeck[0] != expectedFirstShuffledOrdinal {
+		t.Errorf("first_shuffled_ordinal: want %d, got %d", expectedFirstShuffledOrdinal, dc.ShuffledDeck[0])
+	}
 }
 
 func commitHex(t *testing.T, entropy, playerId, gameId []byte) string {
