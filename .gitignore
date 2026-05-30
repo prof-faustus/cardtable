@@ -1,0 +1,42 @@
+# Node / TypeScript
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.npm/
+.pnpm-store/
+.yarn/
+coverage/
+.nyc_output/
+
+# Vite
+.vite/
+
+# Go
+*.exe
+*.test
+*.out
+bin/
+vendor/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+Thumbs.db
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Test caches
+.cache/
+.pytest_cache/
+
+# Local scratch
+*.log
+*.tmp
+scratch/

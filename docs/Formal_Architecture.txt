@@ -1,0 +1,1117 @@
+Formal Architecture Document
+Dealerless Distributed Card-Game Application on BSV
+A transaction-native, script-governed, peer-relayed multiplayer protocol for concealed-card wagering with timeout-bounded recovery
+Version 1
+Architect's consolidated specification
+20 April 2026
+
+Executive Summary
+This document specifies the formal architecture of a dealerless, peer-to-peer, non-custodial multiplayer card-game platform implemented as a distributed transaction state machine on Bitcoin SV. The first production target is the In-Between / Acey-Deucey game, selected because its shallow state tree and single-bettor decision structure exercise the full architecture without the depth of hidden-hand games. The system replaces the trusted dealer with a jointly committed deck derived from shared entropy; replaces operator discretion with precommitted timeout and recovery transaction branches; replaces server-held session state with a deterministic function over the observable valid transaction set; and replaces mempool-only coordination with a dual-path relay in which every action is broadcast simultaneously to all table participants and to the wider BSV network. Every stake, pot, concealed card object, action right, reveal right, fold surrender right, and refund right is represented as a locked output whose legal successors are defined before play begins. Where the conversation history discussed representing each of the 52 (or 54) cards as a unique tokenised object, this document retains that representation while making explicit that the public chain-visible identity is a commitment-bearing UTXO rather than a plaintext card face; local decryption occurs at the holder's wallet, folds surrender concealed objects without revealing them, and showdown reveals prove that revealed plaintext matches the prior commitment. The central design rule — that no economically important outcome depends on discretionary human intervention once a round begins — is enforced by giving every actionable state both a live cooperative branch and a lock-time-activated default branch, so that silence, disappearance, or adversarial stalling resolves deterministically rather than operationally. The architecture is split into seven formal sections in the order the user requested: Product, Protocol, Data Model, Threat Model, Transaction Model, APIs, and Implementation Workstreams, followed by supporting specifications for BSV Script, concealed-deck cryptography, networking, and build sequence, and appendices carrying the state-machine tables, script templates, and transaction schemas.
+
+Reader's Guide and Scope Boundaries
+What this document is
+This document is an architecture specification. It defines what the system must do, how its components relate, what objects it manipulates, what threats it must resist, what transactions and scripts it produces, what APIs it exposes, and in what order it should be built. It is written for an architect reviewing the design before approving implementation and for the build team that will execute it.
+What this document is not
+This document is not implementation code, not a user interface design, not a legal opinion, not a marketing description, and not a protocol cryptography proof. Cryptographic mechanisms are named and bounded; their formal security analysis is out of scope and must be performed separately before any production release. Where a construction is known to require a formal proof of soundness (notably the concealed-deck protocol), this document flags it as a dependency rather than providing the proof.
+Assumptions declared on the face of the document
+The user's review standard requires that assumptions be stated explicitly rather than embedded silently. The following assumptions are load-bearing for this architecture and are declared here so they can be challenged or verified separately:
+Assumption A1 — BSV Script availability. The document assumes that the BSV Script primitives named in the Script Layer section (OP_CHECKSIG, OP_CHECKMULTISIG, OP_CHECKLOCKTIMEVERIFY, OP_CHECKSEQUENCEVERIFY, OP_IF/ELSE/ENDIF, OP_HASH160, OP_SHA256, OP_EQUALVERIFY, stack and altstack operations) are available and enforceable at the consensus layer on the target BSV network at the time of deployment. This must be re-verified against the specific BSV node software version before implementation.
+Assumption A2 — Mempool propagation behaviour. The document assumes that broadcast unconfirmed transactions propagate across the BSV network with latency and acceptance behaviour consistent with documented node behaviour, and that double-spend attempts are observable at peer endpoints rather than silently absorbed. The design does not rely on any specific propagation guarantee beyond first-seen behaviour supplemented by table-local rebroadcast.
+Assumption A3 — Concealed-deck primitive exists. The document assumes the availability of a multiparty concealed-deck construction with the properties enumerated in the Cryptographic Layer section (no single-party knowledge of the shuffle, selective reveal, folding without reveal, and robustness to a non-revealing participant). The document does not assume a specific construction and does not prove one secure. A proof obligation is attached.
+Assumption A4 — Honest client implementation. The document assumes that an honest participant runs an honest client that correctly derives state from the canonical transaction set. Client-side tampering and malicious clients are addressed at the Threat Model layer but are not eliminated by protocol alone.
+Assumption A5 — Peer reachability during a session. The document assumes that for the duration of a hand, a quorum of players can exchange messages directly or via a relay path. Total network partition is handled by the global recovery timeout rather than by continuing play.
+Assumption A6 — Local wallet custody. Users are assumed to maintain local custody of their own signing and decryption keys. Wallet compromise is out of scope for the protocol but flagged in the Threat Model.
+Assumption A7 — Token model. Per explicit user instruction in the conversation, tokens used in the system carry no external economic value and the application is not a regulated gambling product. All references to 'stake', 'pot', and 'settlement' are internal to the token model and do not constitute money transfer or wagering in a legal sense. This assumption is load-bearing for the entire design and must not be altered without triggering a regulatory review of the scope.
+Document structure
+The main body follows the order the user specified: Section 1 Product, Section 2 Protocol, Section 3 Data Model, Section 4 Threat Model, Section 5 Transaction Model, Section 6 APIs, Section 7 Implementation Workstreams. Sections 8 through 11 contain supporting specifications for BSV Script templates, concealed-deck cryptography, networking and peer discovery, and the recommended toolchain and build sequence that do not cleanly fit into the seven primary headings but are load-bearing for the architecture. Appendices carry the formal state-machine tables, transaction schemas, and script pseudocode.
+
+1. Product
+1.1 Product definition
+The product is a dealerless, peer-to-peer, non-custodial wagering platform for simple multiplayer card games, implemented on BSV. It is not a conventional online casino: there is no house, no trusted dealer, no operator with discretionary control over card order or settlement, and no central session authority. The application is a distributed value-transfer and state-transition platform in which card-game rules govern the movement of locked token balances through a finite, precommitted sequence of states. Players interact through a browser client backed by a Go relay and indexing service; every meaningful action is a signed BSV transaction that propagates simultaneously to all table participants and to the wider network.
+1.2 Initial product scope — In-Between / Acey-Deucey
+The first production game is In-Between (also known as Acey-Deucey or Between the Sheets). This game is chosen because it is the simplest multiplayer betting card game that still exercises the full architecture. Two cards are exposed, one player bets whether a third card falls strictly between them, the third card resolves the round, and consecutive or equal exposed-card cases trigger predefined penalty logic. This structure gives the system a single decisive betting action per round, no hidden multi-card hands, no bluffing tree, no side pots, and clean mapping to a shallow finite transaction graph. The architecture remains valid for later games with hidden hands, but In-Between is the reference game for this version of the document.
+1.3 Product principles
+Dealerless operation. No player and no operator has discretionary control over card order, card assignment, or settlement. All such outcomes are produced by jointly committed randomness and by deterministic state transitions.
+Non-custodial value. Users retain signing authority over their own tokens. The platform never takes custody of player funds; it coordinates locked outputs whose legal exits are defined by script.
+Deterministic progression. Every legal next state is defined before it becomes reachable. No state depends on human discretion after a round begins.
+Timeout-bounded continuity. Silence is a defined event, not a protocol failure. Every actionable state has both a cooperative branch and a lock-time-activated default branch.
+Replayability. Every state transition is reproducible from the canonical transaction set and the rule-set hash. Any participant can reconstruct the full session transcript.
+Dual-path propagation. Every action transaction is sent both directly to all table peers and to the wider BSV network. The direct path is the speed layer; the network path is the canonical layer.
+Token-internal value. Per explicit user direction, tokens have no external monetary value. The product is not a licensed gambling service; it is a coordinated multiplayer game protocol with tokenised internal score.
+1.4 User-visible capabilities
+The browser client exposes the following capabilities to the user, in approximate UI order:
+Wallet creation, import, backup, and recovery, with local encrypted storage of signing keys and card-decryption keys.
+Player identity and session establishment, including derivation of per-session messaging keys.
+Lobby browsing, table creation with rule-set and stake parameter selection, table invitation, and seat reservation.
+Rule-set display with rule-set hash, stake amount, player count, decision timeout, recovery timeout, and penalty schedule all visible before the player commits a stake.
+Current state display — participants, turn indicator, visible cards, pot size, allowed actions, countdown to decision timeout, countdown to global recovery timeout, and the configured default action that will trigger on silence.
+Transaction approval and signing flows that make each signing decision explicit about what is being authorised and what its timeout consequences are.
+Concealed-card local display — the player can inspect their dealt cards at any time after assignment; the plaintext never leaves the wallet unless the rules require showdown.
+Settlement, refund, and recovery display with clear accounting of stakes won, lost, or returned.
+Transcript export for independent audit, including the signed action history, reveal proofs, transaction references, and timeout-activation records.
+1.5 Non-goals for the initial release
+The first release deliberately excludes the following in order to prove the architecture end-to-end before generalising:
+Complex betting trees (no-limit multi-street poker, side pots, split pots beyond the simple equal-split case).
+Tournament structures, blind escalation, or rebuy economics.
+Multiple simultaneous game variants beyond In-Between.
+Mobile-native clients; the first release is a browser client only.
+Broad marketplace features for cards, skins, or collectibles.
+Any form of value-bearing token, currency bridge, or regulated money movement.
+Generalised smart-contract abstraction layers disconnected from the first concrete implementation.
+1.6 Product trust boundary
+The product's trust model is explicit and narrow. Users trust: their own wallet to keep their keys safe; their own client to derive state correctly from the canonical transaction set; the BSV network to enforce transaction validity and script semantics per consensus rules. Users do not trust: any other player to act in their interest; any relay or table host to produce correct game state (the relay accelerates; it does not adjudicate); any server-held session state; any off-chain promise that is not anchored to an enforceable transaction branch. This boundary is held by design throughout the rest of the document.
+
+2. Protocol
+2.1 Protocol overview
+The protocol is a hybrid off-chain-coordination / on-chain-enforceability system. Players exchange messages, commitments, partially signed transactions, and reveal proofs directly with one another over authenticated peer channels. Simultaneously, each finalised transaction is broadcast to the BSV network so that it enters the mempool and, in time, a block. The off-chain channel provides speed and round-level coordination. The on-chain channel provides canonical ordering for settlement-class events and the time-lock base for recovery branches. Gameplay progresses from the observable valid transaction set, not from a server database.
+2.2 Central protocol rule
+For every actionable state S with a designated acting player P and a decision deadline T: if P submits a validly signed action transaction referencing S before T, the ordinary action branch is used and the game advances to the successor state implied by that action. If no such transaction is observed by T, the timeout branch attached to S becomes valid, any participant may broadcast the timeout-advance transaction, and the game advances to the successor state implied by the predefined default consequence of silence. Time is therefore a first-class protocol actor, not an external convenience.
+2.3 State machine structure
+Each game state is a committed node with a finite set of legal successors. A state transition is valid only if it is derived from the current committed state, consistent with the rule-set hash, correctly signed or otherwise authorised by the acting party, within the time-validity window for its branch, and unique relative to the unique action right associated with that state (see Section 4.3 on conflict resolution). Legal successor classes include ordinary player-action branches, timeout-default branches, reveal or proof branches, settlement branches, and global recovery branches.
+2.4 Protocol flow for In-Between
+The end-to-end protocol flow for one round of In-Between is as follows:
+Rule-set agreement. Players converge on a rule set (game type, stake size, player count, decision timeout, recovery timeout, penalty schedule, deck format). The rule set is serialised canonically and hashed; the hash is included in every subsequent transaction for that session.
+Table open. A TableOpen transaction is broadcast, committing the rule-set hash, the open seat count, and the invitation window. This creates a table-root output.
+Seat reservation. Each joining player broadcasts a Join transaction that locks their stake into a player-stake output bound to the table root. The stake script permits cooperative spend, winner-proof spend, or timeout refund.
+Table lock. Once the seat count is met, a TableLock transaction consumes the open table-root and produces a locked table-root committing the final participant set and the canonical turn order.
+Entropy commitment. Each participant generates entropy e_i and broadcasts a commitment hash H(e_i). All commitments must land before the entropy reveal deadline.
+Entropy reveal. Each participant reveals e_i. Non-revelation is a defined failure: after the reveal deadline, the recovery branch activates and the session unwinds with stake refunds, less any predefined penalty against the non-revealer.
+Deck derivation. The combined entropy R = H(e_1 || e_2 || ... || e_n) seeds a deterministic shuffle over the canonical ordered deck. This produces the concealed deck state; a DeckCommit transaction anchors the deck commitment on-chain.
+First two cards revealed. The protocol opens the first two positions of the shuffled deck as the visible exposed cards. A CardReveal transaction records the reveal with proofs binding the revealed plaintext to the committed deck.
+Active-player bet window. The active player has the decision window to submit a BetAction transaction with a bet amount within the allowed range, or a Pass transaction if the rules permit passing. If neither arrives before the decision timeout, a Timeout transaction becomes valid and enforces the default action (typically pass / no-bet for In-Between).
+Third card reveal. The third position of the shuffled deck is opened by a CardReveal transaction with supporting proof.
+Settlement. A Settle transaction consumes the pot output according to the resolved outcome — win (player takes from pot), loss (player pays into pot), or penalty (pre-specified amount for consecutive or equal exposed cards).
+Turn rotation. A RotateTurn transaction produces the successor table-root output with the next acting player selected by the canonical turn order.
+Global recovery. If at any stage the session stalls beyond the recovery timeout, a Recovery transaction activates and redistributes the pot and player stakes according to the last valid committed state and the precommitted recovery rules.
+2.5 Timeout model
+2.5.1 Decision timeout
+The decision timeout is short (order of seconds to a few minutes, configurable per rule set). It applies to a single actionable state and exists to keep the game moving when a player is slow or disconnected. On expiry, a pre-defined default consequence becomes valid: pass / no-bet for In-Between, fold for future poker-style games, stand for future blackjack-style games, and so on. The default is state-specific, not merely player-specific. The decision timeout is enforced by OP_CHECKSEQUENCEVERIFY on relative locktime, measured from the state's establishing transaction.
+2.5.2 Global recovery timeout
+The global recovery timeout is longer (order of tens of minutes or more) and applies to the whole session. It exists for cases where the protocol cannot progress at a structural level: entropy reveal never completes, showdown reveal never completes, settlement never arrives, or enough participants disappear that no cooperative branch is reachable. On expiry, a Recovery transaction consumes the last recoverable state output and redistributes value according to the precommitted recovery schedule (typically: refund all unspent stakes to their original funders, apply any specified penalties to non-revealing or non-acting parties). The recovery timeout is enforced by OP_CHECKLOCKTIMEVERIFY on an absolute block height or time.
+2.5.3 The general rule
+Every actionable state carries both a live cooperative branch for the player's ordinary action within the decision window and a dead-man branch for the contractually defined consequence of silence. Every session carries a live cooperative termination branch (normal settlement or rotation) and a dead-man branch for structural stall. No output in the system is reachable only through the cooperative branch; every locked output has a deterministic exit path available even if every other participant disappears.
+2.6 Default actions
+Default actions are protocol-level consequences, not user preferences. They are embedded in the state-machine definition, not in the client UI. A player may optionally be permitted to pre-authorise a choice among legal defaults at game setup (for example, choosing 'always pass on timeout' versus 'always fold on timeout' in games where both are legal defaults), but the state-machine definition always specifies what happens on silence in a given state class. For In-Between v1, the neutral default is 'no bet / pass'; forcing a bet by default would create asymmetric economic risk and an exploitation vector.
+2.7 Dealer replacement
+The dealer function — shuffle, distribute, reveal, control round flow — is decomposed and replaced as follows:
+Shuffle is replaced by the combined-entropy shuffle derivation described in Section 2.4 steps 5–7, so that no single participant controls the deck order.
+Distribute is replaced by CardDeal transactions that transfer concealed card objects into player hand outputs, with selective-reveal key material delivered over the direct peer channel (see Section 9, Cryptographic Layer).
+Reveal is replaced by CardReveal transactions carrying the revealed plaintext and proofs binding the plaintext to the committed concealed object.
+Round flow is replaced by the turn index maintained in the table-root output and updated by RotateTurn transactions; a visual 'dealer' marker may still exist in the UI but carries no protocol authority.
+2.8 Card representation
+2.8.1 Commitment-based deck (MVP)
+The MVP uses a commitment-based deck rather than one tokenised UTXO per card. The deck is represented as a single committed shuffled ordering over the 52 (or 54) canonical card indices; positions are opened to players by selective-reveal messages and anchored on-chain by CardReveal transactions. This is sufficient for In-Between, which reveals all three cards of a round publicly and therefore does not require persistent concealed private hands.
+2.8.2 One UTXO per card (extended model)
+The extended model, in which each of the 52 or 54 cards is represented as a unique tokenised UTXO with its own concealment commitment and selective-reveal proof path, is specified in Section 9 as the target representation for future games with persistent concealed hands (five-card draw, poker variants). The transaction and script models below are written so that moving from the commitment-based MVP deck to the one-UTXO-per-card extended model is a substitution of the CardDeal and CardReveal templates rather than a rewrite of the surrounding protocol.
+2.9 On-chain / off-chain division
+The protocol defines exactly which operations are mandatory on-chain and which remain off-chain unless enforcement is required:
+Off-chain (direct peer)
+Rule-set negotiation before TableOpen.
+Lobby chat and invitations.
+Entropy commitment and reveal exchange (the commitment hashes are anchored on-chain; the plaintext exchange itself is peer-to-peer).
+Selective-reveal key material for concealed card decryption (card plaintext never needs to touch the chain for cards that remain private).
+Partial transaction assembly and signature collection before broadcast.
+Transcript gossip and gap-filling requests.
+On-chain (broadcast, not necessarily confirmed)
+All TableOpen, Join, TableLock, DeckCommit, CardReveal, BetAction, Pass, Settle, RotateTurn, Timeout, and Recovery transactions.
+Commitment anchors for entropy and for concealed card objects where the extended model is used.
+On-chain (block confirmation required before treating as final)
+Initial funding transactions that bring tokens into the game session.
+Final settlement and refund transactions whose outputs a player intends to spend outside the session.
+Recovery transactions used to close out a stalled session.
+Gameplay within a session can proceed from unconfirmed transactions in the mempool, but movement of value across session boundaries requires block confirmation. This split keeps the game responsive while preserving durable finality at the edges.
+2.10 Canonical ordering and conflict precedence
+Two rules prevent divergent state views between honest clients. First, every table-related transaction spends a unique action-right output associated with the current actionable state, so at most one ordinary successor can be confirmed and at most one timeout successor can become valid. Second, when both an ordinary action transaction and a timeout transaction are observed for the same state, precedence is determined by time-validity: the timeout transaction is invalid before the decision deadline, so an in-time ordinary action supersedes a later timeout attempt; once the deadline passes and a timeout transaction becomes valid, a stale in-time action that arrives after the timeout has been accepted by the network is ignored. This ordering is enforced both by the script layer (locktime gating) and by the table-local deterministic rule that each phase has exactly one canonical successor.
+
+3. Data Model
+3.1 Objective
+The data model supports deterministic replay, canonical serialisation, and exact state agreement among honest clients. Every object has a canonical binary encoding, a domain-separated hash, and a declared version field. No object admits informal JSON-like ambiguity on the wire; human-readable JSON may be used for debugging builds only, never as the canonical form.
+3.2 Core objects
+3.2.1 Player
+Represents a participant in a specific session. Fields:
+player_id — a stable identifier derived from the wallet-identity public key.
+wallet_identity_ref — reference to the player's wallet-identity object.
+session_pubkey — ephemeral public key for signing session messages and session-local transactions.
+seat_index — position in canonical turn order, 0-indexed.
+participation_status — one of {invited, joined, ready, active, folded, settled, disconnected, timed_out, forfeited}.
+default_preferences — optional record of the player's chosen default actions within the legal default set for each state class.
+3.2.2 WalletIdentity
+The cross-session identity of a user. Fields:
+value_signing_pubkey — long-term key used to authorise stake-level transactions.
+session_messaging_pubkey — key used for authenticated peer messaging, may be rotated per session.
+card_encryption_pubkey — public key used by the concealed-deck protocol to deliver card plaintext to this user.
+recovery_metadata — optional backup-derivation metadata, client-held only, never transmitted.
+3.2.3 RuleSet
+The full agreed rules for a session. Fields:
+game_type — identifier for the game (v1: 'in_between').
+player_count_min, player_count_max — permitted seat range.
+stake_amount — token amount each player locks at Join.
+min_bet, max_bet — permitted bet range per round.
+decision_timeout_blocks — relative locktime delta for the decision default branch.
+recovery_timeout_blocks — absolute locktime delta for global recovery.
+default_action_by_state — map from state class to default consequence.
+penalty_schedule — penalty amounts for consecutive-card, equal-card, non-reveal, and non-action cases.
+deck_format — 52 or 54 cards, canonical ordering specification.
+settlement_rules — serialised rules used to resolve each round outcome class.
+recovery_rules — serialised rules used by the Recovery transaction to distribute stranded value.
+serialisation_version — integer for forward compatibility.
+rule_set_hash — SHA-256 of the canonical serialisation of the above, used to bind every session transaction.
+3.2.4 GameInstance
+A specific running session. Fields:
+game_id — hash of the TableOpen transaction outpoint.
+rule_set_hash — reference to the agreed rule set.
+player_list — ordered list of player_ids.
+turn_order — permutation of player_list indicating rotation.
+current_round_number — incremented on each RotateTurn.
+pot_outpoint — reference to the current pot output.
+current_state_ref — reference to the current round-state output.
+lifecycle_status — one of {open, locked, shuffling, dealing, active, settling, closed, recovered}.
+3.2.5 EntropyCommitment
+player_id
+commitment_hash — H(entropy || player_id || game_id).
+commitment_tx_ref — reference to the transaction that anchored the commitment.
+reveal_status — one of {pending, revealed, failed}.
+revealed_value — the opened entropy, present only after reveal.
+reveal_deadline — block height or time beyond which non-reveal triggers the recovery branch.
+3.2.6 DeckCommitment
+combined_entropy_ref — hash of the ordered concatenation of all revealed entropies.
+shuffle_algorithm_version — identifier for the deterministic shuffle (v1: Fisher-Yates over Keccak-derived stream).
+deck_commitment_hash — commitment over the full shuffled deck.
+reveal_history — ordered list of (position, revealed_card, reveal_proof_ref) tuples.
+hidden_card_commitments — per-position commitments used in the extended one-UTXO-per-card model.
+3.2.7 Card (extended model)
+Used only in the extended one-UTXO-per-card model. Fields:
+deck_id
+card_serial — position index 0–51 (or 0–53).
+face_commitment — commitment to (rank, suit, joker_flag, deck_nonce, card_nonce).
+ciphertext — encrypted payload intended for the holder's card_encryption_pubkey.
+current_locking_script — the Script currently controlling spend of this card UTXO.
+custody_state — one of {undealt, assigned, surrendered, revealed, burned}.
+3.2.8 RoundState
+The committed state of a round. Fields:
+game_id
+round_number
+acting_player_id
+current_pot_value
+visible_cards — ordered list of revealed card faces for this round.
+hidden_card_refs — references to concealed card commitments still pending reveal.
+allowed_actions — subset of {bet, pass, reveal, timeout, recovery}.
+decision_deadline — block-height or time threshold for decision timeout.
+recovery_deadline — absolute threshold for global recovery.
+successor_template_refs — references to the transaction templates permitted as successors.
+state_hash — hash of the canonical serialisation of the above.
+3.2.9 ActionRequest
+A client-local object (not a wire object) representing the prompt to the acting player. Fields:
+state_hash
+acting_player_id
+legal_action_set
+decision_deadline
+timeout_consequence — the default action that will trigger on silence.
+3.2.10 SignedAction
+referenced_state_hash
+action_type — one of {bet, pass, reveal, fold, settle_claim}.
+economic_amount — bet amount or zero for non-economic actions.
+action_nonce — unique per (player, state) to prevent replay.
+authorising_signature — signature over the canonical serialisation, verifiable under the player's value_signing_pubkey.
+successor_state_commitment — hash of the committed successor state.
+3.2.11 TimeoutBranch
+referenced_state_hash
+timeout_condition — decision or recovery class.
+default_outcome — the state-specific consequence of silence.
+successor_state_commitment
+branch_validity_from — earliest block height or time the branch becomes spendable.
+3.2.12 RevealProof
+commitment_reference — reference to the earlier commitment being opened.
+revealed_value
+proof_material — the opening randomness or equivalent cryptographic material.
+validity_status — {valid, invalid, pending_verification}.
+3.2.13 SettlementResult
+round_reference
+outcome_class — {win, loss, penalty_consecutive, penalty_equal, pass}.
+amount_won_or_lost
+resulting_pot_value
+resulting_player_balances
+3.2.14 RecoveryRecord
+referenced_stalled_state
+recovery_trigger — which timeout fired.
+recovery_tx_ref
+final_distribution — how stranded value was routed.
+3.2.15 AuditTranscript
+ordered_messages — the full signed message stream.
+state_hashes — the sequence of committed state hashes.
+signed_actions
+reveal_proofs
+transaction_references — txids or outpoints for every anchored event.
+timeout_activations
+settlement_results
+3.3 Canonical ordering
+The data model specifies canonical ordering for every collection-valued field:
+Players are ordered by ascending seat_index.
+Entropy commitments are ordered by ascending player seat_index.
+Messages within a round are ordered first by state hash they reference, then by acting-player seat_index, then by nonce, with txid as a final tie-breaker.
+State transitions within a session are totally ordered by the chain of referenced_state_hash links; forks are impossible because each state output is unique and spent at most once.
+Timeout branches are always ordered strictly after the ordinary branch for the same state (by the time-validity rule of Section 2.10).
+3.4 Serialisation
+Every protocol object has a canonical binary serialisation with explicit field order, fixed-width integer encoding (little-endian unless BSV transaction format requires big-endian), domain-separated hashing (each object type prepends a unique type tag before hashing), and a leading version byte. Schema evolution is additive: new fields may be added at the end of an object with a new version byte; older clients reject higher version bytes they do not understand and fall back to the recovery branch rather than misinterpret.
+
+4. Threat Model
+4.1 Objective
+The threat model defines what the system defends against, which assumptions are load-bearing, and what happens when an assumption fails. It is not an exhaustive adversary catalogue; it is the design basis that drives the Transaction and Script sections. The test of the architecture is not whether every conceivable attack is eliminated but whether every known failure mode resolves to a defined deterministic consequence rather than an operational judgement call.
+4.2 Trust assumptions
+The system does not assume:
+A trusted house, dealer, or operator.
+A trusted settlement authority or timeout adjudicator.
+That peers are honest.
+That any single relay or indexer is correct.
+The system does assume (per Section 0 of the Reader's Guide):
+Users control their own keys correctly.
+Honest clients implement the canonical protocol.
+Peers can communicate often enough for coordination within the decision-timeout horizon; total partition triggers recovery.
+The underlying BSV network enforces transaction validity per its consensus rules.
+Per explicit user direction, tokens carry no external value and the product is not a regulated gambling service.
+4.3 Threat categories
+4.3.1 Economic threats
+Theft by invalid branch activation — attempting to spend a pot or stake output through a path the script does not permit.
+Replay against stale state — broadcasting an action transaction that references an obsolete state hash.
+Misrouted settlement — producing a Settle transaction whose outputs do not follow the rule-set's resolution schedule.
+Fee-policy exploitation — broadcasting transactions with fees calibrated to evict competing transactions from the mempool.
+Double-spend confusion — broadcasting two valid-looking action transactions for the same state.
+4.3.2 Fairness threats
+Dealer substitution by stealth — a participant unilaterally controlling randomness without detection.
+Deck bias — manipulating entropy contributions to influence the shuffle.
+Withheld reveal — a participant refusing to open their entropy commitment or a dealt card after committing.
+Selective reveal — revealing information only to some parties.
+Post-commitment card swap — attempting to substitute a committed card for another.
+4.3.3 Liveness threats
+Player disappearance — a participant goes offline at any stage.
+Refusal to sign — a participant declines to produce a required signature.
+Refusal to reveal — a participant declines to open a commitment they are required to open.
+Messaging blackhole — a peer accepts inbound messages but does not relay outbound ones.
+Deliberate stall — a participant times every action to the last moment before the decision timeout, degrading UX.
+4.3.4 Client threats
+Local key compromise.
+Modified or malicious client software on the attacker's own machine.
+Misleading signing prompts — UI-level attempts to trick the user into authorising the wrong action.
+Stale local state leading to authorising an invalid successor.
+4.3.5 Protocol threats
+Ambiguous serialisation admitting multiple valid parses.
+Inconsistent state derivation between clients.
+Race conditions between ordinary action and timeout transactions.
+Duplicate message propagation causing apparent conflicts.
+Stale-branch resurrection — a once-valid branch attempting to spend after the state has advanced.
+4.4 Named threat scenarios with defined consequences
+The following scenarios must have deterministic consequences. Each is mapped to the relevant branch:
+Scenario
+Trigger
+Defined consequence
+Disconnect before funding
+Player fails to submit Join tx
+Table does not lock; TableOpen expires; no funds at risk
+Disconnect after funding, before entropy commit
+No EntropyCommit from player
+Recovery timeout triggers; all stakes refunded
+Commits entropy, refuses to reveal
+No EntropyReveal before deadline
+Recovery branch activates; non-revealer's stake penalised per rule-set schedule; other stakes refunded
+Disconnect before betting
+Active player silent through decision window
+Decision timeout triggers; default (pass) applied; game advances
+Disconnect after bet, before third-card reveal
+Third-card reveal absent
+Reveal-or-timeout branch fires; predefined forfeit applies to the silent party
+Conflicting bet transactions
+Two BetAction txs for same state
+Deterministic conflict rule: first-confirmed on-chain wins; table indexer treats later as invalid
+Conflicting stake spend attempt
+Player tries to re-spend their stake output
+UTXO model rejects; only the first spend is valid per consensus
+Settlement not published
+No Settle tx before recovery deadline
+Global recovery activates; pot distributed per last valid committed state
+Reconnect with obsolete state
+Stale client broadcasts old action
+Action references a state hash already spent; network rejects
+Duplicate message propagation
+Same action seen twice
+Idempotent by action_nonce; duplicates discarded at indexer
+Fee-eviction attack
+Attacker tries to evict settlement tx
+Dual-path relay: direct peers still see the tx; recovery branch eventually enforces outcome anyway
+Total partition
+No progress possible
+Global recovery timeout fires; last-valid-state refund schedule executes
+
+4.5 Threat handling principles
+Make every important failure mode explicit. Unnamed failures are forbidden.
+Prefer deterministic consequence over human discretion. No operator judgement resolves any protocol-level question.
+Use timeouts to preserve liveness. No locked output exists without a timeout exit.
+Bind every branch to a specific committed state. Stale branches cannot be reused.
+Ensure that stale actions cannot override canonical progression. The UTXO model does most of this work; the script layer does the rest.
+Make adversarial outcomes no better than honest ones. A cheater who triggers a timeout forfeit must fare at least as badly as a cheater who plays honestly and loses. Otherwise cheating is a dominant strategy.
+
+5. Transaction Model
+5.1 Objective
+The transaction model is the executable skeleton of the protocol. Every protocol state is a committed output, and every legal successor is a transaction template that spends that output under a specific script branch. The transaction model answers four questions for every state: what output encodes the state, which scripts lock that output, what transactions can spend it, and what lock times gate each of those transactions. The answers are enumerated here and realised as script templates in Section 8.
+5.2 Transaction classes
+The minimum viable transaction taxonomy for In-Between v1 consists of the following classes. Each class has a canonical template; each template binds to the rule-set hash and the current state hash.
+Class
+Purpose
+Consumes
+Produces
+TableOpen
+Open a new table and advertise seats
+Operator funding UTXO
+Open table-root output; invitation validity window
+Join
+Player locks stake and reserves seat
+Player funding UTXO
+Player-stake output; updated open table-root
+TableLock
+Close joining and fix participant set
+Open table-root
+Locked table-root output committing player list and turn order
+EntropyCommit
+Anchor a player's entropy commitment
+Player signing input
+Entropy commitment output
+EntropyReveal
+Open the entropy commitment
+Entropy commitment output
+Revealed-entropy marker output
+DeckCommit
+Anchor the deck commitment derived from combined entropy
+Locked table-root + all revealed-entropy markers
+Deck-commitment output
+CardReveal
+Open a specific deck position and prove binding
+Deck-commitment output (or card UTXO in extended model)
+Round-state output with visible card recorded
+BetAction
+Active player submits bet within decision window
+Round-state output (action-right branch)
+Updated round-state output with bet recorded
+Pass
+Active player passes within decision window (if legal)
+Round-state output (action-right branch)
+Updated round-state output with pass recorded
+Timeout
+Default action after decision deadline
+Round-state output (timeout branch, locktime-gated)
+Updated round-state output with default consequence
+Settle
+Resolve round outcome and move pot value
+Round-state output + pot output
+Updated pot output + player balance updates
+RotateTurn
+Advance to next player
+Settled round-state output
+New round-state output with next acting player
+Recovery
+Global recovery after recovery timeout
+Last stalled output (recovery branch, locktime-gated)
+Refund outputs per rule-set schedule
+TableClose
+Close the table after the final round
+Terminal table-root output
+Final player balance outputs
+
+5.3 Branch binding
+Every transaction in the classes above commits, either directly in its witness data or indirectly through the script it satisfies, to the following binding fields: game_id, rule_set_hash, round_number, referenced_state_hash, acting_player_id (where applicable), economic_state (pot value and player balances relevant to the transition), visible_cards snapshot, hidden_commitment_refs, and successor_state_commitment. Binding prevents replay across states, replay across sessions, and stale-branch misuse. A transaction that fails to bind correctly is invalid at the script layer.
+5.4 Time-lock usage
+Locktime in this protocol is not optional. It is the mechanism that makes silence a defined event. The architecture uses two distinct locktime mechanisms:
+OP_CHECKSEQUENCEVERIFY (CSV) is used for relative locktime on decision timeouts. The timeout branch of a round-state output becomes spendable only after a rule-set-specified number of blocks (or seconds, per nSequence semantics) have elapsed since the state was established. This scales correctly regardless of when the state was reached.
+OP_CHECKLOCKTIMEVERIFY (CLTV) is used for absolute locktime on global recovery. The recovery branch becomes spendable only after a specific block height or Unix time fixed at session start. This provides a hard session-wide deadline independent of per-state progression.
+The two mechanisms compose cleanly: a stall within a round hits the decision timeout first (CSV-gated); a structural stall that blocks multiple rounds eventually hits the recovery timeout (CLTV-gated) regardless of what the per-round CSV would permit.
+5.5 In-Between transaction flow, concrete
+A complete round, written as a sequence of transactions, is:
+Tx_1:  TableOpen     (operator funding -> open table-root)
+Tx_2a: Join_P1       (P1 funding -> player-stake_P1 + open table-root')
+Tx_2b: Join_P2       (P2 funding -> player-stake_P2 + open table-root'')
+Tx_2c: Join_Pn       (Pn funding -> player-stake_Pn + open table-root''')
+Tx_3:  TableLock     (open table-root''' -> locked table-root)
+Tx_4a: EntropyCommit_P1
+Tx_4b: EntropyCommit_P2
+Tx_4n: EntropyCommit_Pn
+Tx_5a: EntropyReveal_P1
+Tx_5b: EntropyReveal_P2
+Tx_5n: EntropyReveal_Pn
+Tx_6:  DeckCommit    (locked table-root + reveals -> deck-commitment)
+Tx_7a: CardReveal    (deck-commitment -> round-state with card_1)
+Tx_7b: CardReveal    (round-state -> round-state with card_1, card_2)
+Tx_8:  BetAction     (round-state -> round-state with bet)
+    OR Pass          (round-state -> round-state with pass)
+    OR Timeout       (round-state -> round-state with default, CSV-gated)
+Tx_9:  CardReveal    (round-state -> round-state with card_3)
+Tx_10: Settle        (round-state + pot -> updated pot + balance updates)
+Tx_11: RotateTurn    (settled round-state -> next round-state for P2)
+...
+Tx_K:  Recovery      (any stalled output, CLTV-gated) [only if session stalls]
+Tx_Z:  TableClose    (terminal table-root -> final balance outputs)
+5.6 Fee policy
+Every transaction requires a miner fee. For v1, the fee policy is: fees are paid from a dedicated fee-pool output funded by the operator at TableOpen, not deducted from player stakes. This isolates fee surprises from game accounting and prevents a fee-exhaustion attack on a player's stake. The fee pool is refunded to the operator on TableClose, less consumed fees. If the fee pool is exhausted mid-session, the recovery branch activates. Absolute fee amounts per transaction class are set in the rule set and may be revised in later versions.
+5.7 Conflict resolution
+Section 4.4 named the conflict scenarios. The transaction model resolves them as follows. Each actionable state is represented by exactly one spendable output; only one spending transaction per output can be confirmed in the chain by consensus. For competing unconfirmed transactions, the table-local rule is first-seen-by-quorum with txid as tie-breaker after the decision window closes. If two BetAction transactions for the same state exist in the mempool, the indexer tracks both and treats the one that confirms in a block as canonical; if neither confirms before the decision timeout, the Timeout transaction becomes valid and supersedes both. Stale attempts to spend already-spent outputs are rejected by BSV consensus without protocol intervention.
+
+6. APIs
+6.1 Objective
+The APIs are the stable contracts between the browser client, the Go relay, the Go indexer, the SPV service, the wallet module, and the chain broadcast endpoint. They are specified here as logical interfaces; whether any given interface is a local function call, an HTTP endpoint, a WebSocket message, or a gRPC method is an implementation choice left to the build team. What is fixed is the set of operations, their inputs, their outputs, and their error semantics.
+6.2 API domains
+6.2.1 Session and Lobby API
+Responsible for table creation, discovery, and seat management. Operations:
+createGame(rule_set, stake_config, invitation_policy) -> game_id
+listOpenTables(filter) -> [table_summary]
+joinGame(game_id, player_identity) -> seat_index | error
+leaveLobby(game_id) -> ack
+getGameSummary(game_id) -> game_instance
+startGame(game_id) -> ack          // server-side trigger for TableLock
+6.2.2 Rule and Configuration API
+validateRuleSet(rule_set) -> {valid: bool, errors: [...]}
+computeRuleSetHash(rule_set) -> hash
+resolveDefaultAction(state_class, player_preference) -> default_action
+getTimeoutParameters(rule_set) -> {decision: blocks, recovery: blocks}
+6.2.3 State Engine API
+The deterministic core. Pure function over transcripts, no hidden state.
+deriveState(transcript, rule_set) -> round_state
+getLegalActions(round_state) -> [action_type]
+applyAction(round_state, signed_action, rule_set) -> round_state' | error
+isTimeoutValid(round_state, current_height) -> bool
+computeSettlement(round_state, reveals, rule_set) -> settlement_result
+verifyTransition(prev_state, next_state, supporting_evidence) -> bool
+6.2.4 Randomness and Deck API
+generateEntropy() -> entropy_bytes
+commitEntropy(entropy) -> commitment_hash
+revealEntropy(entropy, commitment_hash) -> reveal_proof
+combineEntropy(ordered_reveals) -> combined_seed
+deriveDeck(combined_seed, deck_format) -> shuffled_deck
+revealCard(deck_commitment, position, opening_material) -> {card, proof}
+verifyCardReveal(deck_commitment, position, claimed_card, proof) -> bool
+6.2.5 Wallet and Signing API
+selectFundingInputs(amount, fee_estimate) -> [utxo]
+signTransaction(tx_template, input_indices) -> signed_tx
+signProtocolMessage(message, key_role) -> signature
+getSessionPublicKey() -> pubkey
+getValueSigningPublicKey() -> pubkey
+getCardEncryptionPublicKey() -> pubkey
+decryptCardPayload(ciphertext, ephemeral_pubkey) -> plaintext
+6.2.6 Transaction Builder API
+buildTableOpenTx(rule_set, operator_funding) -> tx_template
+buildJoinTx(game_context, player_funding) -> tx_template
+buildTableLockTx(game_context) -> tx_template
+buildEntropyCommitTx(game_context, commitment_hash) -> tx_template
+buildEntropyRevealTx(game_context, entropy) -> tx_template
+buildDeckCommitTx(game_context, deck_commitment) -> tx_template
+buildCardRevealTx(game_context, position, reveal_proof) -> tx_template
+buildActionTx(round_state, action) -> tx_template
+buildTimeoutTx(round_state) -> tx_template
+buildSettleTx(round_state, settlement_result) -> tx_template
+buildRotateTurnTx(settled_state) -> tx_template
+buildRecoveryTx(stalled_output) -> tx_template
+buildTableCloseTx(terminal_state) -> tx_template
+6.2.7 Peer Messaging API
+advertisePresence(session_pubkey, capabilities) -> ack
+sendDirectMessage(peer, message) -> ack
+broadcastTableMessage(game_id, message) -> ack
+requestTranscriptGap(peer, from_state, to_state) -> [messages]
+notifyTimeoutObservation(state_hash, current_height) -> ack
+subscribeToTable(game_id) -> channel
+unsubscribeFromTable(game_id) -> ack
+6.2.8 Audit and Replay API
+getTranscript(game_id) -> audit_transcript
+replayGame(audit_transcript, rule_set) -> [round_state]
+verifyOutcome(game_id, claimed_settlement) -> bool
+exportAuditRecord(game_id) -> signed_audit_bundle
+6.2.9 Chain Interface API
+broadcastTransaction(signed_tx) -> {status, txid}
+// status in {accepted_by_network, seen_on_network, double_spend_attempted, rejected}
+getTransactionStatus(txid) -> status
+getOutputStatus(outpoint) -> {spent, spending_txid_or_null}
+getBlockHeight() -> int
+getMerkleProof(txid) -> BUMP_proof
+getHeaders(from_height, to_height) -> [block_header]
+verifySPV(txid, merkle_proof, headers) -> bool
+6.3 Cross-cutting API requirements
+Canonical serialisation — every argument and return value uses the data-model serialisation defined in Section 3.4.
+Versioning — every API carries an API version header; clients and servers reject version mismatches loudly rather than attempting compatibility shims.
+Idempotency — every state-mutating operation accepts a client-supplied nonce and is idempotent under that nonce.
+Explicit error semantics — errors carry a machine-readable code, a human-readable message, and, where applicable, a reference to the state hash at which the error occurred.
+No silent ambiguity — if an operation cannot determine a unique answer (e.g., two candidate successor states), it returns an error with both candidates rather than choosing.
+
+7. Implementation Workstreams
+7.1 Objective
+The project is organised as ten coordinated workstreams executed in partial overlap. Workstream 1 (Protocol Specification) must complete before any other workstream begins coding; its outputs are the inputs to every other workstream. Workstreams 2–6 can overlap once their shared inputs from Workstream 1 are stable. Workstreams 7–10 run alongside 2–6 and increase in intensity as the system approaches end-to-end integration.
+7.2 Workstream 1 — Protocol Specification
+Deliverables:
+Formal state-machine definition with every state, every legal successor, and every precondition enumerated.
+Branch semantics for every output type: cooperative, reveal, timeout, recovery.
+Canonical ordering rules for all collection-valued fields.
+Serialisation specification with domain separation, versioning, and field ordering.
+Rule-set schema for In-Between v1.
+Test-vector suite covering valid transitions, invalid transitions, timeout activations, conflict scenarios, and recovery scenarios.
+This workstream produces a single protocol document and a machine-readable schema file. All subsequent code must conform to both. Drift between the document and the schema is the single largest project risk and must be monitored at every review.
+7.3 Workstream 2 — Game Logic Engine
+Deliverables:
+Pure deterministic In-Between rules engine implemented twice: once in TypeScript (for the browser client) and once in Go (for the backend). Both implementations share the same test-vector suite from Workstream 1.
+Pot accounting logic with exact integer arithmetic, no floating point.
+Penalty logic for consecutive-card and equal-card exposed hands.
+Legal-action computation and state-transition functions.
+Local replay engine that reconstructs state from a transcript.
+Dual implementation is deliberate: it is the strongest available check on ambiguity in the protocol document. If the TypeScript and Go engines diverge on any test vector, the document is ambiguous and must be fixed before either implementation is accepted.
+7.4 Workstream 3 — Cryptographic Deck and Reveal System
+Deliverables:
+Entropy commitment and reveal implementation.
+Combined-seed derivation (H over canonically ordered reveals).
+Shuffle derivation (deterministic, auditable).
+Deck-commitment logic.
+Card-reveal verification.
+For the extended model: multiparty concealed-deck protocol selection, implementation, and formal security analysis (see Section 9).
+This workstream replaces the trusted dealer. For the v1 In-Between release, which reveals all three round cards publicly, the commitment-based deck is sufficient and the formal multiparty concealed-deck protocol can be deferred. For any game with persistent private hands, this workstream becomes the longest and highest-risk item in the project.
+7.5 Workstream 4 — Transaction and Script Layer
+Deliverables:
+Transaction class definitions and binary templates for each class in Section 5.2.
+Script templates for table funding, player stake, pot, round-state, card custody (extended model), reveal-or-timeout, fold surrender, and recovery.
+Timeout-capable branch construction with correct CSV and CLTV usage.
+Script validation tooling that replays a transaction against its locking script offline.
+Transaction simulation harness that drives the templates through full sessions without broadcasting.
+This workstream owns the enforceable skeleton of the game. Every script template must be exercised by at least three test cases: cooperative path, reveal path, and timeout path.
+7.6 Workstream 5 — Wallet Integration
+Deliverables:
+Key management strategy and implementation: value-signing key, session messaging key, card-encryption key, recovery key.
+Wallet connection model (browser-local, no external wallet dependency for v1).
+Transaction signing flows with explicit signing prompts that describe the action and its timeout consequences.
+Off-chain message signing for peer messaging.
+Funding-input selection with deterministic UTXO choice for reproducibility.
+Local encrypted storage of card plaintext after selective reveal.
+Per explicit user direction, tokens in the system carry no external value. This does not reduce the engineering rigour required on the wallet layer: private keys still control session participation, and key loss still ends a player's ability to play.
+7.7 Workstream 6 — Peer Networking Layer
+Deliverables:
+Session establishment and peer authentication.
+Commitment propagation with inventory/object pattern (borrowed from Bitmessage-style relay, per conversation history).
+Action propagation with dual-path broadcast (direct to peers, plus to BSV network).
+Transcript synchronisation and gap-fill.
+Reconnect handling and stale-state detection.
+Timeout-notice propagation.
+Go relay service implementing the above for server-backed sessions.
+WebSocket transport for v1; WebRTC data channels deferred to later versions.
+7.8 Workstream 7 — Front-End Application
+Deliverables:
+Browser client built with React, TypeScript, and Vite.
+Lobby and join flows.
+Table state display, visible-card rendering, pot-size display, countdown timers.
+Signing prompts with explicit action and consequence text.
+Settlement and recovery result display.
+Transcript export UI.
+Error and reconnect UX.
+The UI must conceal protocol complexity without concealing consequences. Every signing prompt names what is being signed, what happens on success, and what happens on silence.
+7.9 Workstream 8 — Audit, Replay, and Observability
+Deliverables:
+Full transcript export with canonical serialisation.
+Deterministic replay tool that verifies the full state progression from any transcript.
+Branch-verification tool that replays a transaction against its locking script.
+Timeout-event inspection with per-state deadline history.
+Settlement audit support.
+Developer observability: structured logs, metrics for table lifecycle events, traces for peer messaging latency.
+7.10 Workstream 9 — Adversarial Testing and QA
+Deliverables:
+Disconnect-scenario tests at every protocol stage named in Section 4.4.
+Stale-action tests.
+Timeout-race tests covering the in-time-action-versus-timeout boundary.
+Withheld-reveal tests.
+Duplicate-message tests.
+Invalid-branch-rejection tests.
+Long-timeout recovery tests.
+End-to-end deterministic replay verification from independently captured transcripts.
+This workstream is not optional, not deferrable, and not executable only at the end. It runs continuously from the moment Workstream 2 produces a runnable engine.
+7.11 Workstream 10 — MVP Integration and Hardening
+Deliverables:
+End-to-end In-Between implementation exercising all ten earlier workstreams.
+Constrained-player-count deployment (2–4 seats for initial release).
+Fee-handling policy verification under realistic mempool conditions.
+Operational telemetry.
+Production-hardening review including key storage, transport security, and script-review sign-off.
+External security review before any release beyond a closed test cohort.
+7.12 Engineering roles required
+Protocol architect — owns Workstream 1 and governs drift between all others.
+Transaction and script engineer — owns Workstream 4.
+Wallet engineer — owns Workstream 5.
+Cryptography engineer — owns Workstream 3, including formal analysis for the extended concealed-deck model.
+Distributed systems engineer — owns Workstream 6 and the relay service.
+Front-end engineer — owns Workstream 7.
+QA and adversarial tester — owns Workstream 9.
+Product designer familiar with stateful financial interaction — supports Workstream 7 on consequence-explicit UI.
+The project cannot be executed by a generic front-end team. The transaction, script, cryptography, and distributed-systems disciplines are load-bearing and must be staffed at senior level.
+
+8. BSV Script Layer
+8.1 Objective
+This section catalogues the BSV Script primitives the protocol relies on, names each script template required for In-Between v1, and gives pseudocode for the non-obvious ones. The pseudocode is not final bytecode; it is the logical specification that the script-template library implements. Actual bytecode is produced by the BSV SDK's script-template facility so that the same logical template compiles consistently across client and server.
+8.2 Required Script primitives
+8.2.1 Signature gates
+OP_CHECKSIG — single-signer authorisation for player-level actions.
+OP_CHECKMULTISIG — cooperative authorisation where multiple signers must agree (pot-control outputs, cooperative-advance branches).
+OP_CHECKSIGVERIFY — variant used inside compound branches to fail fast on invalid signatures.
+8.2.2 Timelocks
+OP_CHECKLOCKTIMEVERIFY (CLTV) — absolute locktime for global recovery branches; ensures a branch is not spendable before a specific block height or Unix time.
+OP_CHECKSEQUENCEVERIFY (CSV) — relative locktime for decision-timeout branches; ensures a branch is not spendable until the configured number of blocks (or seconds) have elapsed since the state output was mined.
+8.2.3 Conditional logic
+OP_IF, OP_ELSE, OP_ENDIF — branch selection based on stack values, used to encode multiple legal spend paths in a single output.
+OP_VERIFY — fails the script if the top stack value is false; used to enforce preconditions without leaving debris on the stack.
+OP_NOTIF — inverse of OP_IF, used where the negative branch is the common case.
+8.2.4 Integrity checks
+OP_SHA256, OP_HASH160, OP_HASH256 — hash primitives used for commitment verification.
+OP_EQUAL, OP_EQUALVERIFY — equality comparison for commitment matching.
+8.2.5 Numeric and stack
+OP_ADD, OP_SUB, OP_LESSTHAN, OP_GREATERTHAN — numeric comparisons for bet-range enforcement and phase-number checks.
+OP_DUP, OP_SWAP, OP_DROP, OP_PICK, OP_ROLL — stack manipulation.
+OP_TOALTSTACK, OP_FROMALTSTACK — altstack used to park values across conditional branches.
+OP_DEPTH — query stack depth for variable-input scripts.
+8.3 Script templates — In-Between v1
+8.3.1 Table-funding output script
+Locks the operator-funded table-root and fee-pool outputs. Permits three spending paths: cooperative advance by required signers (operator and a quorum of players, to move from open to locked table-root), timeout refund of the fee pool to the operator after the absolute table-expiry time, and recovery after global recovery timeout. Pseudocode:
+IF <cooperative_branch_selector>
+    // quorum multisig
+    <k> <pubkey_1> ... <pubkey_n> <n> OP_CHECKMULTISIGVERIFY
+    <rule_set_hash> OP_EQUALVERIFY
+    <successor_state_commitment> OP_EQUALVERIFY
+    1
+ELSE
+    IF <recovery_branch_selector>
+        <recovery_deadline> OP_CHECKLOCKTIMEVERIFY OP_DROP
+        <operator_pubkey> OP_CHECKSIG
+    ELSE
+        <session_expiry> OP_CHECKLOCKTIMEVERIFY OP_DROP
+        <operator_pubkey> OP_CHECKSIG
+    ENDIF
+ENDIF
+8.3.2 Player-stake output script
+Locks an individual player's stake on Join. Permits: consumption by the next legal state transition with player signature (cooperative), consumption by a Settle transaction that proves the rule-set-defined outcome (winner claim or loss-into-pot), and refund to the player after global recovery timeout.
+IF <cooperative_branch_selector>
+    <player_pubkey> OP_CHECKSIGVERIFY
+    <rule_set_hash> OP_EQUALVERIFY
+    <bound_state_hash> OP_EQUALVERIFY
+    1
+ELSE
+    IF <settlement_branch_selector>
+        // proof that Settle tx is being built per the round's resolved outcome
+        OP_HASH256 <settlement_commitment> OP_EQUALVERIFY
+        <operator_pubkey> <player_pubkey> 2 OP_CHECKMULTISIG
+    ELSE
+        <recovery_deadline> OP_CHECKLOCKTIMEVERIFY OP_DROP
+        <player_pubkey> OP_CHECKSIG
+    ENDIF
+ENDIF
+8.3.3 Round-state output script (the core of the game)
+Locks the round-state output that the active player must consume with BetAction or Pass, or that the timeout branch activates after the decision deadline. This is the script where CSV is used:
+IF <action_branch_selector>
+    // active player's ordinary action within the decision window
+    <active_player_pubkey> OP_CHECKSIGVERIFY
+    <rule_set_hash> OP_EQUALVERIFY
+    <bound_state_hash> OP_EQUALVERIFY
+    <action_commitment_hash> OP_SHA256 OP_EQUALVERIFY
+    // bet-range check for BetAction; skipped for Pass
+    OP_DUP <min_bet> OP_GREATERTHANOREQUAL OP_VERIFY
+    <max_bet> OP_LESSTHANOREQUAL OP_VERIFY
+    1
+ELSE
+    // timeout branch — CSV-gated
+    <decision_timeout_delta> OP_CHECKSEQUENCEVERIFY OP_DROP
+    // any participant may broadcast the default-action transaction
+    <default_consequence_commitment> OP_SHA256 OP_EQUALVERIFY
+    OP_DEPTH 0 OP_GREATERTHAN OP_VERIFY
+    1
+ENDIF
+8.3.4 Pot output script
+Locks the accumulated pot. Permits cooperative settlement with multisig, winner-proof claim with valid reveal binding, and refund after global recovery.
+IF <cooperative_settle_selector>
+    // quorum of players + operator co-sign settlement
+    <k> <pubkey_1> ... <pubkey_n> <n> OP_CHECKMULTISIGVERIFY
+    <settlement_result_commitment> OP_EQUALVERIFY
+    1
+ELSE
+    IF <winner_claim_selector>
+        <winner_pubkey> OP_CHECKSIGVERIFY
+        <card_reveal_proof> OP_SHA256 <expected_reveal_commitment> OP_EQUALVERIFY
+        <rule_set_hash> OP_EQUALVERIFY
+        1
+    ELSE
+        <recovery_deadline> OP_CHECKLOCKTIMEVERIFY OP_DROP
+        // refund to all stake holders per rule-set schedule
+        <refund_commitment> OP_SHA256 OP_EQUALVERIFY
+        1
+    ENDIF
+ENDIF
+8.3.5 Reveal-or-timeout script
+Applied to any output whose spend requires a reveal before a deadline. Permits: spend with valid opening material, or timeout default after the deadline.
+IF <reveal_selector>
+    OP_SHA256 <expected_commitment> OP_EQUALVERIFY
+    <holder_pubkey> OP_CHECKSIG
+ELSE
+    <reveal_deadline> OP_CHECKSEQUENCEVERIFY OP_DROP
+    <default_party_pubkey> OP_CHECKSIG
+ENDIF
+8.3.6 Concealed-card custody script (extended model)
+Used only in the extended one-UTXO-per-card model. Locks a concealed card assigned to a specific player. Permits: local spend by the holder into their hand branch (custody management), surrender into the settlement path without revealing plaintext (fold), reveal into the showdown path with plaintext plus proof, or reclaim by the table on timeout.
+IF <holder_custody_selector>
+    <holder_pubkey> OP_CHECKSIG
+ELSE
+    IF <fold_surrender_selector>
+        <holder_pubkey> OP_CHECKSIGVERIFY
+        // ciphertext remains committed in the successor output; plaintext not required
+        <surrender_commitment> OP_EQUALVERIFY
+        1
+    ELSE
+        IF <reveal_selector>
+            <holder_pubkey> OP_CHECKSIGVERIFY
+            OP_SHA256 <face_commitment> OP_EQUALVERIFY
+            1
+        ELSE
+            <reveal_deadline> OP_CHECKSEQUENCEVERIFY OP_DROP
+            <k> <table_pubkeys> <n> OP_CHECKMULTISIG
+        ENDIF
+    ENDIF
+ENDIF
+8.4 Script design discipline
+Conservative first, ornamental never. v1 uses only the primitives listed in 8.2; no exotic opcode combinations.
+Every template must compile to bytecode that is exercised by at least three tests (cooperative, timeout, invalid).
+Every branch commits to rule_set_hash and to bound_state_hash. Scripts that lack these bindings are considered defective.
+CSV and CLTV are the only permitted timelock mechanisms. Any attempt to emulate timelock through external oracles is a protocol violation.
+
+9. Cryptographic Layer
+9.1 Objective
+The cryptographic layer replaces the dealer. It guarantees that the deck is not controlled by any single participant, that undealt cards remain hidden, that dealt cards are privately intelligible only to their holder, that holders can later prove card identity at reveal, and that folding does not require revelation. This section names the mechanisms. It does not prove them secure: that is the deliverable of Workstream 3's formal analysis task.
+9.2 Entropy and shuffle
+Each participant generates a uniformly random entropy value e_i of at least 256 bits. The commitment C_i = H(e_i || player_id || game_id) is published via an EntropyCommit transaction; the EntropyReveal transaction subsequently publishes e_i. The combined seed is R = H(e_1 || e_2 || ... || e_n) with participants ordered by seat_index. R seeds a deterministic Fisher-Yates shuffle over the canonical ordered deck using a Keccak-derived keystream. The hash function H is SHA-256 for v1, domain-separated with a 'deck_entropy' tag to prevent cross-protocol collision.
+The security property relied upon is: if at least one participant is honest and generates e_i uniformly at random and keeps it secret until reveal, then R is uniformly random, and therefore the deck order is uniformly random. This is the standard 'one honest contributor suffices' property of commit-reveal randomness. It fails if all participants collude, which is out of scope for the fairness model (collusion of all participants has no victim).
+Failure to reveal after commitment is handled by the recovery branch: the recovery transaction refunds all stakes and applies the rule-set-specified penalty to the non-revealer. The penalty must be large enough that withholding reveal is strictly worse in expectation than revealing honestly; otherwise withholding becomes a selectively profitable strategy for a participant who dislikes the deck order they can partially predict.
+9.3 MVP deck concealment (commitment-based)
+For In-Between v1, where all three cards are revealed publicly each round, the deck concealment is straightforward. After R is computed, the shuffled deck is deterministic and identical across all honest clients. The DeckCommit transaction anchors the commitment H(shuffled_deck || R) on-chain. Each CardReveal transaction opens a specific position by publishing the deck-position-to-card mapping for that position along with the proof that it matches the committed shuffle. No one needs persistent private cards, so no selective concealment is required at the v1 layer.
+9.4 Extended deck concealment (for future games with private hands)
+Games with persistent concealed hands require stronger machinery. The architecture names two candidate constructions; Workstream 3 must select one and provide a formal security analysis before that workstream produces production code.
+9.4.1 Candidate A — mental-poker-style layered encryption
+Each participant applies a secret permutation and an encryption layer to the ordered deck in turn, so after n passes no single participant knows the mapping from position to card. To deal a card to a specific player, the other participants cooperatively strip off their encryption layers for that position, leaving only the recipient's layer, which the recipient decrypts locally. This is the classical mental-poker construction in the Bitcoin-compatible literature. Its advantages are conceptual clarity and no dealer trust. Its disadvantages are message complexity (O(n^2) for n players), proof overhead for the permutation correctness, and brittleness if a participant disappears mid-shuffle.
+9.4.2 Candidate B — threshold-assisted dealing
+Participants jointly generate a threshold encryption key under which the deck is encrypted. Cards are dealt by threshold-decrypting specific positions to specific recipients. Any t-of-n threshold of participants can cooperate to complete a deal, so the protocol tolerates up to n-t disappearances without stalling. This is simpler to implement and more robust to churn, but requires a threshold-cryptography primitive with standardised security analysis.
+9.4.3 Required properties either way
+No single-party knowledge of the shuffle.
+Selective reveal: a holder can prove the identity of their own card at showdown without revealing other cards.
+Folding without reveal: the card object's ciphertext is transferred or invalidated without the plaintext ever being published.
+Robustness to non-revelation: if a participant refuses to cooperate in a required reveal, the recovery branch activates and the rule-set's penalty applies.
+Binding: a revealed card must be provably the one that was committed, under a commitment scheme that is computationally binding and computationally hiding.
+9.5 Selective-reveal key delivery
+Selective-reveal key material is delivered over the direct peer channel, encrypted to the recipient's card_encryption_pubkey. This plaintext never touches the chain for cards that remain private through a hand. Only at showdown does the recipient produce a RevealProof that binds the plaintext card face to the on-chain commitment.
+9.6 Fold without reveal
+A fold transaction spends the concealed card output into a fold-surrender output. The fold-surrender output is locked so that it cannot be reopened within the current round (preventing a folded player from later claiming the pot with a revealed card). The plaintext is never disclosed. Other participants cannot learn what the folded player held. This property is preserved in both Candidate A and Candidate B concealment constructions because both keep card plaintext off-chain until showdown.
+9.7 Proof obligation
+Before any extended-model game is released, Workstream 3 must produce: a written specification of the chosen construction with precise security definitions; a formal proof or reduction to a standard hardness assumption; a threat analysis covering at least the non-reveal, selective-reveal, deck-bias, and post-commitment-swap attacks named in Section 4.3.2; and an implementation-versus-specification review confirming that the code matches the specification. Without these, the extended model must not ship.
+
+10. Networking and Peer Discovery
+10.1 Objective
+The networking layer moves transactions and messages between participants and between participants and the BSV network. Per the conversation's design decisions, it borrows the peer-discovery skeleton from early Bitcoin and the application-layer object-propagation pattern from Bitmessage. This section specifies both, in the narrow form required by v1.
+10.2 Dual-path propagation
+Every table-related transaction is sent along two paths in parallel. Path 1 (direct peer mesh) delivers the signed transaction to every current table participant over authenticated session channels. Path 2 (BSV network) broadcasts the transaction to the wider network through a broadcast endpoint so that it enters the mempool and, eventually, a block. The direct path is the speed layer; participants act on it immediately. The network path is the canonical layer; it provides first-seen guarantees, double-spend observation, and eventual confirmation.
+10.3 Peer discovery (Bitcoin-style)
+Discovery is modelled on the early Bitcoin peer lifecycle, restricted to the game network:
+version / verack handshake — peers advertise protocol version, software build, capability flags (relay-only, table-host, archive, etc.), and supported game types.
+getaddr / addr gossip — peers exchange lists of known peer endpoints, with service flags and last-seen timestamps.
+ping / pong — keepalive and latency estimation.
+Peer manager (addrman-style) — tried, new, suspicious, and manually-added buckets to resist eclipse and stale-address attacks.
+Bootstrap — hardcoded seed endpoints for initial discovery, supplemented by DNS seeds under project control and a cached peer database from prior sessions.
+10.4 Object propagation (Bitmessage-style)
+Application-layer content is propagated as typed objects through an inventory-request pattern:
+inv — peer advertises object hashes it holds.
+getdata — peer requests specific objects by hash.
+object — peer delivers the requested object.
+notfound — peer reports it no longer holds a requested object.
+Object types for v1:
+PEER_CAPS — advertised capability record.
+TABLE_ANNOUNCE — open table advertisement with rule-set hash, stake, seat count, expiry.
+SEAT_COMMIT — a player's seat-reservation intent.
+TABLE_START — confirmation that a table has locked and active play begins.
+ACTION_COMMIT — commitment phase of a commit-reveal action.
+ACTION_REVEAL — reveal phase of a commit-reveal action.
+ROUND_RESULT — per-round resolution summary.
+TRANSCRIPT_CHECKPOINT — periodic signed summary of session state.
+TABLE_CLOSE — terminal notice for a session.
+10.5 Streams
+Propagation is segmented into streams to avoid global chatter:
+LOBBY — open table announcements.
+GAME_TYPE_<id> — messages specific to a game variant.
+TABLE_<id> — messages scoped to a single live table.
+A node subscribes only to the streams it cares about. A player at a specific table subscribes to LOBBY (for future tables), GAME_TYPE_in_between (for related games), and TABLE_<their_table_id> (for the live session).
+10.6 Transport
+v1 uses WebSocket between browser clients and Go relay nodes, and TCP between Go relay nodes. WebRTC data channels are deferred to later versions when direct browser-to-browser transport becomes advantageous. All transports are authenticated by session pubkeys; all payloads are signed at the application layer so transport compromise does not compromise protocol integrity.
+10.7 Wire format
+Every wire message has a fixed header (magic bytes, protocol version, message type code, payload length, checksum) and a typed binary payload per the data-model serialisation in Section 3.4. JSON is used only in debug builds and only on the control plane; the data plane is binary.
+10.8 Split of responsibility
+Browser client — wallet, signing, local state derivation, direct messaging to current table peers, subscription to table streams, broadcast to BSV network via relay or SPV broadcaster.
+Go relay node — accelerates table-local message delivery, rebroadcasts missing transactions, indexes table state, assists with peer discovery.
+Go indexer node — observes mempool and chain, classifies table transactions, maintains table-state projections, exposes query APIs.
+SPV/proof service — fetches merkle/BUMP proofs, verifies block headers, tracks transaction status and double-spend observation.
+The source of truth is the canonical transaction set. The relay and indexer accelerate access to it; they are never authoritative.
+
+11. Toolchain and Build Sequence
+11.1 Recommended toolchain
+11.1.1 Client
+TypeScript, React, Vite. Standard browser component model and build tooling.
+State management: Zustand or Redux, selected by the front-end lead.
+IndexedDB (via Dexie or similar) for persistent local storage of keys, card plaintext, and transcripts.
+Web Crypto / SubtleCrypto for hashing, signing prep, and symmetric card-payload decryption.
+BSV TypeScript SDK for transaction construction, script templates, broadcasting helpers, and SPV.
+11.1.2 Backend
+Go for the relay, indexer, SPV service, and timeout orchestrator.
+PostgreSQL for persistence of tables, participants, action logs, checkpoints, settlements, and audit bundles.
+Redis for ephemeral table coordination (optional; can be done in-memory for small deployments).
+BSV Go SDK for transaction construction, broadcast, header tracking, and verification.
+WebSocket server for real-time client connections.
+protobuf or a compact binary format for wire messages (not JSON on the data plane).
+11.1.3 Repository layout
+/game-protocol
+  /spec
+    state-machine.md
+    tx-types.md
+    script-templates.md
+    timeout-rules.md
+    test-vectors.md
+  /packages
+    /protocol-types        (shared TS + Go type definitions)
+    /script-templates-ts
+    /script-templates-go
+    /crypto-cards
+    /state-engine-ts
+    /state-engine-go
+  /apps
+    /client-web
+    /relay-go
+    /indexer-go
+    /spv-service-go
+  /tests
+    /integration
+    /simulation
+    /adversarial
+11.2 Build sequence — phases with hard entry criteria
+Phase 1 — Protocol Specification (weeks 1–2)
+Entry: none.
+Exit: state machine, tx types, first four script templates, timeout matrix, and initial test-vector suite, all approved by the architect.
+Phase 2 — Open-Information Prototype (weeks 3–4)
+Entry: Phase 1 exit criteria met.
+Deliverable: a playable minimal game with table creation, join, ready, one betting round, one winner, and timeout refund. No concealed cards yet.
+Exit: dual TypeScript/Go state engine passes the full test-vector suite; Go relay and browser client exchange messages over WebSocket; one complete session runs end-to-end with on-chain broadcast to a BSV test network.
+Phase 3 — Concealed Single-Card Prototype (weeks 5–6)
+Entry: Phase 2 exit criteria met.
+Deliverable: one encrypted card object per player, private local decryption, fold without reveal, reveal with proof, timeout unwind.
+Exit: every concealed-card operation exercises the required script branches and passes the adversarial test subset.
+Phase 4 — Multi-Card Hand (weeks 7)
+Entry: Phase 3 exit criteria met.
+Deliverable: five-concealed-card hand with simple showdown rule, one betting round, settlement, timeout branches. (Provides the stepping stone toward future private-hand games; not required for In-Between v1 itself, which uses only the MVP commitment-based deck.)
+Exit: transcript replay reconstructs every session independently; cryptographic Workstream 3 delivers the formal analysis for the extended model.
+Phase 5 — Hardening (week 8+)
+Entry: Phase 4 exit criteria met for extended-model games, or Phase 3 exit criteria met for In-Between v1 release.
+Deliverables: full replay engine, audit log, conflict handling, dropped-peer recovery, resubmission logic, observability, fee-policy tuning, external security review.
+Exit: external security review signs off; adversarial test suite runs clean; documented operational procedures exist for production deployment.
+11.3 Minimum viable first release
+The first release worth shipping internally is: browser client in React/TypeScript/Vite; Go relay and indexer; BSV SDK integration; one game type (In-Between); two players; commitment-based deck; single betting decision per round; fold without reveal; reveal with proof; timeout refund; end-to-end transcript export. If that release runs reliably under the Workstream 9 adversarial test suite, the architecture is proven. If it does not, the extended vision will not succeed and the architectural assumptions must be re-examined before further scope is added.
+11.4 What not to build first
+Full poker rules, side pots, split pots.
+Tournament structures, blind escalation, rebuys.
+Pure browser-only peer mesh (defer WebRTC).
+Elaborate NFT metadata, marketplace features, collectibles.
+Mobile-native clients.
+Polished production design work before the protocol is proven.
+Any value-bearing token, currency bridge, or regulated money movement. (Per explicit user direction.)
+
+Appendix A — State Machine Table
+The complete state machine for In-Between v1. Each row names a state, the event that enters it, the legal successor events, and the exits (cooperative, timeout, recovery).
+State
+Entered by
+Legal successors
+Timeout exit
+Recovery exit
+OPEN
+TableOpen
+Join, TableLock, table expiry
+Table expiry → TableClose (unfunded)
+n/a
+LOCKED
+TableLock
+EntropyCommit
+Entropy-commit deadline → recovery
+Recovery branch
+ENTROPY_COMMITTED
+All EntropyCommit seen
+EntropyReveal
+Reveal deadline → recovery
+Recovery branch
+ENTROPY_REVEALED
+All EntropyReveal seen
+DeckCommit
+DeckCommit deadline → recovery
+Recovery branch
+DECK_COMMITTED
+DeckCommit
+CardReveal (pos 0)
+Reveal deadline → recovery
+Recovery branch
+ONE_CARD_UP
+CardReveal (pos 0)
+CardReveal (pos 1)
+Reveal deadline → recovery
+Recovery branch
+TWO_CARDS_UP
+CardReveal (pos 1)
+BetAction, Pass, Timeout
+Decision deadline → default (Pass)
+Recovery branch
+ACTION_TAKEN
+BetAction / Pass / Timeout
+CardReveal (pos 2)
+Reveal deadline → recovery
+Recovery branch
+THREE_CARDS_UP
+CardReveal (pos 2)
+Settle
+Settle deadline → recovery
+Recovery branch
+SETTLED
+Settle
+RotateTurn, TableClose
+Rotate/close deadline → recovery
+Recovery branch
+CLOSED
+TableClose or Recovery
+terminal
+n/a
+n/a
+
+Appendix B — Rule-Set Schema for In-Between v1
+{
+  game_type: 'in_between',
+  player_count_min: 2,
+  player_count_max: 6,
+  stake_amount: <integer tokens>,
+  min_bet: <integer tokens>,
+  max_bet: <integer tokens, <= current pot>,
+  decision_timeout_blocks: <integer, typical 6-18>,
+  recovery_timeout_blocks: <integer, typical 144+>,
+  default_action_by_state: {
+    TWO_CARDS_UP: 'pass',
+    (other states): 'recovery'
+  },
+  penalty_schedule: {
+    consecutive_exposed_cards: <integer>,   // player pays this into pot if they bet
+    equal_exposed_cards:       <integer>,   // larger penalty; typically double-loss
+    non_reveal:                <integer>,   // stake penalty for entropy non-reveal
+    non_action:                0            // silence pays only the default consequence
+  },
+  deck_format: { cards: 52, jokers: false, canonical_order_ref: 'sha256-of-spec' },
+  settlement_rules: { hit_between: 'player_wins_bet_from_pot',
+                      miss_between: 'player_pays_bet_to_pot',
+                      tie_on_bound: 'player_pays_bet_to_pot' },
+  recovery_rules: { distribute: 'refund_unspent_stakes_to_original_funders',
+                    pot_on_recovery: 'split_equally_across_live_players',
+                    penalty_application: 'deduct_from_offending_player_refund' },
+  serialisation_version: 1,
+  rule_set_hash: <SHA-256 of canonical serialisation of the above>
+}
+Appendix C — Transaction Schemas
+Canonical field order for each transaction class. Every transaction also carries the standard BSV transaction envelope (version, inputs with prevout and scriptSig, outputs with value and scriptPubKey, locktime).
+TableOpen
+bind: { game_id (derived), rule_set_hash }
+inputs: [operator_funding_utxo]
+outputs: [
+  open_table_root { rule_set_hash, player_count, seat_expiry, fee_pool },
+  fee_pool_output
+]
+locktime: 0
+Join
+bind: { game_id, rule_set_hash, player_id, seat_index }
+inputs: [player_funding_utxo, open_table_root_prev]
+outputs: [
+  player_stake_output { stake_amount, player_pubkey, rule_set_hash },
+  open_table_root_next { updated_seat_list }
+]
+locktime: 0
+TableLock
+bind: { game_id, rule_set_hash, final_player_list, turn_order }
+inputs: [open_table_root_final]
+outputs: [
+  locked_table_root { participant_commitment, turn_order_commitment, recovery_deadline }
+]
+locktime: 0
+EntropyCommit
+bind: { game_id, player_id, commitment_hash }
+inputs: [player_signing_input]
+outputs: [entropy_commitment_output { player_id, commitment_hash, reveal_deadline }]
+locktime: 0
+EntropyReveal
+bind: { game_id, player_id, revealed_entropy }
+inputs: [entropy_commitment_output]
+outputs: [revealed_entropy_marker { player_id, revealed_entropy }]
+locktime: 0
+DeckCommit
+bind: { game_id, combined_entropy_ref, deck_commitment_hash }
+inputs: [locked_table_root, all revealed_entropy_markers]
+outputs: [
+  deck_commitment_output { deck_commitment_hash, shuffle_algorithm_version },
+  round_state_output_round_1 { round_number: 1, phase: 'DECK_COMMITTED' }
+]
+locktime: 0
+CardReveal
+bind: { game_id, round_number, position, revealed_card, reveal_proof_ref }
+inputs: [round_state_output_prev, deck_commitment_output (read-only ref)]
+outputs: [round_state_output_next { visible_cards += revealed_card }]
+locktime: 0
+BetAction / Pass / Timeout
+bind: { game_id, round_number, acting_player_id, action_type, economic_amount }
+inputs: [round_state_output_prev (action-right branch or timeout branch)]
+outputs: [
+  round_state_output_next { action recorded, pot updated if bet },
+  pot_output_next (if economic_amount != 0)
+]
+locktime: 0 for BetAction/Pass; CSV-gated for Timeout
+nSequence: rule_set.decision_timeout_blocks for Timeout branch
+Settle
+bind: { game_id, round_number, outcome_class, amount_won_or_lost }
+inputs: [round_state_output_THREE_CARDS_UP, pot_output_prev]
+outputs: [
+  round_state_output_SETTLED,
+  pot_output_next { updated pot value },
+  balance_update outputs per player
+]
+locktime: 0
+RotateTurn
+bind: { game_id, round_number+1, next_acting_player_id }
+inputs: [round_state_output_SETTLED]
+outputs: [round_state_output_round_N+1 { phase: 'DECK_COMMITTED' or 'LOCKED', as applicable }]
+locktime: 0
+Recovery
+bind: { game_id, recovery_trigger, recovery_snapshot }
+inputs: [any stalled locked output, recovery branch]
+outputs: [refund outputs per rule_set.recovery_rules]
+locktime: rule_set.recovery_timeout_blocks (CLTV)
+TableClose
+bind: { game_id, final_balances }
+inputs: [terminal table-root output]
+outputs: [per-player final balance outputs]
+locktime: 0
+Appendix D — Glossary
+Action right — a spendable output whose consumption represents a specific player move at a specific state.
+Binding — inclusion of rule_set_hash and bound_state_hash inside a transaction's script or witness so the transaction cannot be replayed against a different context.
+CLTV — OP_CHECKLOCKTIMEVERIFY. Absolute locktime.
+CSV — OP_CHECKSEQUENCEVERIFY. Relative locktime.
+Dual-path propagation — simultaneous delivery of a transaction to direct table peers and to the BSV network.
+Extended model — the one-UTXO-per-card representation used for future games with persistent concealed private hands.
+MVP deck — the commitment-based deck used by In-Between v1.
+Round-state output — the unique spendable output that represents the current round's actionable state.
+Rule-set hash — SHA-256 of the canonical serialisation of the agreed rule set; bound into every session transaction.
+Selective reveal — disclosing the plaintext of a specific concealed card to a specific verifier without disclosing others.
+Session — one instance of a game, from TableOpen through TableClose or Recovery.
+State hash — hash of the canonical serialisation of a RoundState object.
+Timeout branch — the locktime-gated script branch that activates on silence.
+Transcript — the canonical ordered record of every signed message, reveal proof, transaction reference, and timeout activation for a session.
+Appendix E — Open Items and Proof Obligations
+Items flagged in the body of this document that require resolution before specific features ship:
+OI-1. Concealed-deck construction selection (Candidate A vs Candidate B, Section 9.4). Required before extended-model games ship. Not required for In-Between v1.
+OI-2. Formal security proof for the chosen construction (Section 9.7). Required before extended-model games ship.
+OI-3. Script bytecode compilation and on-chain test execution for each template in Section 8.3 against the target BSV network at deployment time (Assumption A1). Required before any release.
+OI-4. Mempool-propagation behavioural review against the specific BSV node software version used in production (Assumption A2). Required before any release.
+OI-5. External security review of the integrated system per Phase 5 of Section 11.2. Required before any release beyond a closed test cohort.
+OI-6. Fee-policy calibration against realistic mempool conditions (Section 5.6). Required before any release.
+OI-7. Explicit confirmation of the token-value assumption (Assumption A7) before each release, because any change to this assumption triggers a full regulatory review of scope.
