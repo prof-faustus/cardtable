@@ -1,0 +1,81 @@
+{
+  "vector_id": "valid-join",
+  "description": "A Join transaction with the exact stake_amount of the rule set is accepted; player-stake output appears in the game instance.",
+  "rule_set": {
+    "game_type": "in_between",
+    "player_count_min": 2,
+    "player_count_max": 4,
+    "stake_amount": 1000,
+    "min_bet": 1,
+    "max_bet": 100,
+    "decision_timeout_blocks": 6,
+    "recovery_timeout_blocks": 144,
+    "invitation_window_blocks": 18,
+    "default_action_by_state": { "S8_BET_DECISION": "pass" },
+    "penalty_schedule": { "non_reveal": 100, "bad_reveal": 200, "consecutive_cards": 0, "equal_cards": 0 },
+    "deck_format": 52,
+    "shuffle_algorithm_version": 1,
+    "settlement_rules": { "in_between_win_multiplier": 1, "in_between_loss_multiplier": 1, "consecutive_cards_penalty": 1, "equal_cards_penalty": 2 },
+    "recovery_rules": { "refund_stakes_to_funders": true, "apply_non_reveal_penalty": true, "apply_bad_reveal_penalty": true },
+    "serialisation_version": 1
+  },
+  "initial_state": {
+    "state_class": "S1_SEAT_OPEN",
+    "game_id": "0000000000000000000000000000000000000000000000000000000000000001",
+    "round_number": 0,
+    "acting_player_seat": null,
+    "players": [],
+    "pot_value": 0,
+    "visible_cards": [],
+    "decision_deadline_block_height": null,
+    "recovery_deadline_block_height": 144
+  },
+  "inputs": [
+    {
+      "kind": "Action",
+      "action_type": "Join",
+      "player_seat": 0,
+      "player_pubkey": "02ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c",
+      "stake_amount": 1000,
+      "action_nonce": "0000000000000000000000000000000000000000000000000000000000000001",
+      "current_block_height": 100
+    }
+  ],
+  "expected_result": "ok",
+  "expected_state": {
+    "state_class": "S1_SEAT_OPEN",
+    "game_id": "0000000000000000000000000000000000000000000000000000000000000001",
+    "round_number": 0,
+    "acting_player_seat": null,
+    "players": [
+      {
+        "seat": 0,
+        "value_signing_pubkey": "02ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c",
+        "participation_status": "joined",
+        "stake_outpoint_hint": "join-tx-0-out-0"
+      }
+    ],
+    "pot_value": 0,
+    "visible_cards": [],
+    "decision_deadline_block_height": null,
+    "recovery_deadline_block_height": 144
+  },
+  "expected_emitted_txs": [
+    {
+      "class": "TXC_JOIN",
+      "binding": {
+        "game_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "round_number": 0,
+        "referenced_state_hash": "open-table-root-hash",
+        "acting_player_seat": 0,
+        "economic_state": { "pot": 0, "balances": [] },
+        "successor_state_commitment": "computed-from-applied-state"
+      },
+      "outputs": [
+        { "kind": "player-stake", "value_sats": 1000, "owner_pubkey": "02ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c" },
+        { "kind": "OP_RETURN_metadata", "value_sats": 0 }
+      ]
+    }
+  ],
+  "notes": "Demonstrates the minimum binding: a player with a valid pubkey and exactly the rule-set stake amount joins; the state engine appends them to the players list and marks them 'joined'. The state class does not advance to TABLE_LOCKED because player_count_min has not been met."
+}

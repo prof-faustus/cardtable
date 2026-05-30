@@ -1,0 +1,99 @@
+{
+  "vector_id": "settlement",
+  "description": "Settle resolves the round per the third-card outcome. Three sub-cases exercised: WIN (third card strictly between visible cards), LOSS (third card outside), and CONSECUTIVE_PENALTY (visible cards consecutive, third card resolves with penalty rule).",
+  "rule_set": {
+    "game_type": "in_between",
+    "player_count_min": 2,
+    "player_count_max": 4,
+    "stake_amount": 1000,
+    "min_bet": 1,
+    "max_bet": 100,
+    "decision_timeout_blocks": 6,
+    "recovery_timeout_blocks": 144,
+    "invitation_window_blocks": 18,
+    "default_action_by_state": { "S8_BET_DECISION": "pass" },
+    "penalty_schedule": { "non_reveal": 100, "bad_reveal": 200, "consecutive_cards": 50, "equal_cards": 100 },
+    "deck_format": 52,
+    "shuffle_algorithm_version": 1,
+    "settlement_rules": { "in_between_win_multiplier": 1, "in_between_loss_multiplier": 1, "consecutive_cards_penalty": 50, "equal_cards_penalty": 100 },
+    "recovery_rules": { "refund_stakes_to_funders": true, "apply_non_reveal_penalty": true, "apply_bad_reveal_penalty": true },
+    "serialisation_version": 1
+  },
+  "subcases": [
+    {
+      "name": "win",
+      "initial_state": {
+        "state_class": "S10_SETTLED_ROUND",
+        "game_id": "0000000000000000000000000000000000000000000000000000000000000005",
+        "round_number": 1,
+        "acting_player_seat": 0,
+        "players": [
+          { "seat": 0, "balance": 1000 },
+          { "seat": 1, "balance": 1000 }
+        ],
+        "pot_value": 100,
+        "visible_cards": [ { "rank": "5", "suit": "clubs", "ordinal": 5 }, { "rank": "K", "suit": "hearts", "ordinal": 13 }, { "rank": "9", "suit": "spades", "ordinal": 9 } ],
+        "bet_amount": 10
+      },
+      "inputs": [ { "kind": "Action", "action_type": "Settle", "current_block_height": 110 } ],
+      "expected_result": "ok",
+      "expected_state": {
+        "state_class": "S11_ROTATE_TURN",
+        "players": [ { "seat": 0, "balance": 1010 }, { "seat": 1, "balance": 1000 } ],
+        "pot_value": 90,
+        "settlement_outcome": "win"
+      }
+    },
+    {
+      "name": "loss",
+      "initial_state": {
+        "state_class": "S10_SETTLED_ROUND",
+        "game_id": "0000000000000000000000000000000000000000000000000000000000000005",
+        "round_number": 2,
+        "acting_player_seat": 1,
+        "players": [
+          { "seat": 0, "balance": 1010 },
+          { "seat": 1, "balance": 1000 }
+        ],
+        "pot_value": 90,
+        "visible_cards": [ { "rank": "5", "suit": "clubs", "ordinal": 5 }, { "rank": "K", "suit": "hearts", "ordinal": 13 }, { "rank": "Q", "suit": "spades", "ordinal": 12 } ],
+        "bet_amount": 20
+      },
+      "inputs": [ { "kind": "Action", "action_type": "Settle", "current_block_height": 120 } ],
+      "expected_result": "ok",
+      "expected_state": {
+        "state_class": "S11_ROTATE_TURN",
+        "players": [ { "seat": 0, "balance": 1010 }, { "seat": 1, "balance": 980 } ],
+        "pot_value": 110,
+        "settlement_outcome": "loss"
+      },
+      "_explanation": "Third card 12 is NOT strictly between 5 and 13 (it equals neither but is < 13 so in this In-Between variant 'strictly between' means strict open interval); player loses their bet. Bet of 20 returns to pot."
+    },
+    {
+      "name": "consecutive_penalty",
+      "initial_state": {
+        "state_class": "S10_SETTLED_ROUND",
+        "game_id": "0000000000000000000000000000000000000000000000000000000000000005",
+        "round_number": 3,
+        "acting_player_seat": 0,
+        "players": [ { "seat": 0, "balance": 1010 }, { "seat": 1, "balance": 980 } ],
+        "pot_value": 110,
+        "visible_cards": [ { "rank": "7", "suit": "clubs", "ordinal": 7 }, { "rank": "8", "suit": "hearts", "ordinal": 8 }, { "rank": "3", "suit": "spades", "ordinal": 3 } ],
+        "bet_amount": 10
+      },
+      "inputs": [ { "kind": "Action", "action_type": "Settle", "current_block_height": 130 } ],
+      "expected_result": "ok",
+      "expected_state": {
+        "state_class": "S11_ROTATE_TURN",
+        "players": [ { "seat": 0, "balance": 960 }, { "seat": 1, "balance": 980 } ],
+        "pot_value": 160,
+        "settlement_outcome": "consecutive_penalty"
+      },
+      "_explanation": "Visible cards 7 and 8 are consecutive. Per settlement_rules.consecutive_cards_penalty (50), the active player pays a fixed penalty into the pot regardless of the third card. Active player's balance drops by 50; pot rises by 50."
+    }
+  ],
+  "asserts": [
+    "every subcase's expected_state.pot_value + sum(expected_state.players[*].balance) is conserved across the transition (no mining fee in the engine; fees come from operator fee pool)"
+  ],
+  "notes": "Documents the three principal outcome classes of In-Between. The state engine must implement settlement_outcome resolution as a pure function over (visible_cards, bet_amount, settlement_rules)."
+}

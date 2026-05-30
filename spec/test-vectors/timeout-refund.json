@@ -1,0 +1,84 @@
+{
+  "vector_id": "timeout-refund",
+  "description": "At S8 BET_DECISION, the acting player is silent past the decision_timeout. The Timeout transaction applies the default consequence (pass) and the state advances to S11 ROTATE_TURN with the pot unchanged.",
+  "rule_set": {
+    "game_type": "in_between",
+    "player_count_min": 2,
+    "player_count_max": 4,
+    "stake_amount": 1000,
+    "min_bet": 1,
+    "max_bet": 100,
+    "decision_timeout_blocks": 6,
+    "recovery_timeout_blocks": 144,
+    "invitation_window_blocks": 18,
+    "default_action_by_state": { "S8_BET_DECISION": "pass" },
+    "penalty_schedule": { "non_reveal": 100, "bad_reveal": 200, "consecutive_cards": 0, "equal_cards": 0 },
+    "deck_format": 52,
+    "shuffle_algorithm_version": 1,
+    "settlement_rules": { "in_between_win_multiplier": 1, "in_between_loss_multiplier": 1, "consecutive_cards_penalty": 1, "equal_cards_penalty": 2 },
+    "recovery_rules": { "refund_stakes_to_funders": true, "apply_non_reveal_penalty": true, "apply_bad_reveal_penalty": true },
+    "serialisation_version": 1
+  },
+  "initial_state": {
+    "state_class": "S8_BET_DECISION",
+    "game_id": "0000000000000000000000000000000000000000000000000000000000000004",
+    "round_number": 1,
+    "acting_player_seat": 0,
+    "players": [
+      { "seat": 0, "value_signing_pubkey": "02ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c", "participation_status": "active" },
+      { "seat": 1, "value_signing_pubkey": "02bb0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c", "participation_status": "active" }
+    ],
+    "pot_value": 2000,
+    "visible_cards": [ { "rank": "5", "suit": "clubs" }, { "rank": "K", "suit": "hearts" } ],
+    "state_established_block_height": 100,
+    "decision_deadline_block_height": 106,
+    "recovery_deadline_block_height": 244
+  },
+  "inputs": [
+    {
+      "kind": "TimeoutTick",
+      "current_block_height": 107
+    }
+  ],
+  "expected_result": "ok",
+  "expected_state": {
+    "state_class": "S11_ROTATE_TURN",
+    "game_id": "0000000000000000000000000000000000000000000000000000000000000004",
+    "round_number": 1,
+    "acting_player_seat": 0,
+    "players": [
+      { "seat": 0, "value_signing_pubkey": "02ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c", "participation_status": "active" },
+      { "seat": 1, "value_signing_pubkey": "02bb0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c", "participation_status": "active" }
+    ],
+    "pot_value": 2000,
+    "visible_cards": [ { "rank": "5", "suit": "clubs" }, { "rank": "K", "suit": "hearts" } ],
+    "default_action_applied": "pass",
+    "silenced_seat": 0,
+    "recovery_deadline_block_height": 244
+  },
+  "expected_emitted_txs": [
+    {
+      "class": "TXC_TIMEOUT",
+      "binding": {
+        "game_id": "0000000000000000000000000000000000000000000000000000000000000004",
+        "round_number": 1,
+        "referenced_state_hash": "S8-state-hash",
+        "acting_player_seat": 0,
+        "default_action": "pass",
+        "economic_state": { "pot": 2000 },
+        "successor_state_commitment": "computed"
+      },
+      "locktime": { "kind": "CSV", "blocks": 6 },
+      "outputs": [
+        { "kind": "round-state", "value_sats": 0 },
+        { "kind": "OP_RETURN_metadata", "value_sats": 0, "fields": { "silenced_seat": 0, "default_action": "pass" } }
+      ]
+    }
+  ],
+  "asserts": [
+    "expected_state.pot_value == initial_state.pot_value (pass is economically neutral)",
+    "the timeout transaction's CSV gate matches decision_timeout_blocks exactly",
+    "no balance changes; only the round advances"
+  ],
+  "notes": "S8 silence is the legitimate default; pass is not a penalty. This vector demonstrates that the state engine handles a TimeoutTick input deterministically from the state alone (no clock; the block height is an explicit input)."
+}

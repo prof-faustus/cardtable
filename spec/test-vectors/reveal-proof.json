@@ -1,0 +1,85 @@
+{
+  "vector_id": "reveal-proof",
+  "description": "A CardReveal with a preimage that hashes to the committed card_commitment is accepted; one with a wrong preimage is rejected with INVALID_REVEAL_PROOF.",
+  "rule_set": {
+    "game_type": "in_between",
+    "player_count_min": 2,
+    "player_count_max": 4,
+    "stake_amount": 1000,
+    "min_bet": 1,
+    "max_bet": 100,
+    "decision_timeout_blocks": 6,
+    "recovery_timeout_blocks": 144,
+    "invitation_window_blocks": 18,
+    "default_action_by_state": { "S8_BET_DECISION": "pass" },
+    "penalty_schedule": { "non_reveal": 100, "bad_reveal": 200, "consecutive_cards": 0, "equal_cards": 0 },
+    "deck_format": 52,
+    "shuffle_algorithm_version": 1,
+    "settlement_rules": { "in_between_win_multiplier": 1, "in_between_loss_multiplier": 1, "consecutive_cards_penalty": 0, "equal_cards_penalty": 0 },
+    "recovery_rules": { "refund_stakes_to_funders": true, "apply_non_reveal_penalty": true, "apply_bad_reveal_penalty": true },
+    "serialisation_version": 1
+  },
+  "deck_seed": {
+    "_comment": "Fixed entropies for determinism.",
+    "entropies_by_seat": {
+      "0": "1111111111111111111111111111111111111111111111111111111111111111",
+      "1": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "combined": "expected_combined_hash_to_be_filled_in_by_reference_implementation",
+    "deck_nonce": "0000000000000000000000000000000000000000000000000000000000000007",
+    "shuffle_algorithm_version": 1
+  },
+  "deck_commitment": {
+    "deck_commitment_hash": "expected_deck_commitment_hash",
+    "hidden_card_commitments": [
+      {
+        "position": 0,
+        "card_commitment": "expected_card_commitment_position_0",
+        "card_nonce": "0700000000000000000000000000000000000000000000000000000000000000"
+      }
+    ]
+  },
+  "subcases": [
+    {
+      "name": "valid_reveal",
+      "input": {
+        "kind": "Action",
+        "action_type": "CardReveal",
+        "position": 0,
+        "claimed_card_ordinal": 17,
+        "claimed_card_nonce": "0700000000000000000000000000000000000000000000000000000000000000",
+        "current_block_height": 110
+      },
+      "expected_result": "ok",
+      "expected_state_class_after": "S7_CARD_REVEAL_SECOND"
+    },
+    {
+      "name": "wrong_preimage",
+      "input": {
+        "kind": "Action",
+        "action_type": "CardReveal",
+        "position": 0,
+        "claimed_card_ordinal": 5,
+        "claimed_card_nonce": "0700000000000000000000000000000000000000000000000000000000000000",
+        "current_block_height": 110
+      },
+      "expected_result": "error",
+      "expected_error": "INVALID_REVEAL_PROOF"
+    },
+    {
+      "name": "wrong_nonce",
+      "input": {
+        "kind": "Action",
+        "action_type": "CardReveal",
+        "position": 0,
+        "claimed_card_ordinal": 17,
+        "claimed_card_nonce": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "current_block_height": 110
+      },
+      "expected_result": "error",
+      "expected_error": "INVALID_REVEAL_PROOF"
+    }
+  ],
+  "_implementation_note": "The 'expected_*' placeholders for the combined hash, deck_commitment_hash, and card_commitment_position_0 are TO BE FILLED IN by the first conforming implementation and locked thereafter. The placeholders make the structure explicit; the byte-exact values become normative once produced.",
+  "notes": "Exercises spec/card-protocol.md §5 (Card reveal MVP). The valid_reveal subcase advances the state class one card forward; the wrong-preimage subcase rejects with no state change. INVALID_REVEAL_PROOF is the canonical error code."
+}

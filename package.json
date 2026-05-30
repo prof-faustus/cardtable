@@ -1,0 +1,28 @@
+{
+  "name": "cardtable",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Dealerless distributed card-game protocol on BSV — monorepo root.",
+  "license": "MIT",
+  "packageManager": "pnpm@9.0.0",
+  "workspaces": [
+    "packages/*",
+    "apps/client-web"
+  ],
+  "scripts": {
+    "build": "pnpm -r --filter './packages/**' build",
+    "test": "pnpm -r --filter './packages/**' test",
+    "typecheck": "pnpm -r --filter './packages/**' typecheck",
+    "lint": "pnpm -r --filter './packages/**' lint",
+    "ci": "pnpm typecheck && pnpm build && pnpm test"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0",
+    "@types/node": "^20.12.7"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}

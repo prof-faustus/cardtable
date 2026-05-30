@@ -9,8 +9,8 @@ behind the code.
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Repo skeleton, CLAUDE.md, Formal Architecture document, .gitignore, LICENSE, empty directories with `.gitkeep` | **complete** |
-| 1 | Protocol specification (`spec/`) and `packages/protocol-types` | not started |
-| 2 | `packages/state-engine` + `packages/script-templates` (TypeScript) and the Go port at `apps/relay-go/pkg/engine` | not started |
+| 1 | Protocol specification (`spec/`) and `packages/protocol-types` | **complete** |
+| 2 | `packages/state-engine` + `packages/script-templates` (TypeScript) and the Go port at `apps/relay-go/pkg/engine` (Go port deferred) | **complete (TypeScript); Go port deferred to Phase 3+** |
 | 3 | Open-information prototype: minimal browser client + Go relay; table flow without concealed cards | not started |
 | 4 | Concealed single-card protocol: `packages/crypto-cards`, encrypted card UTXOs, fold without reveal | not started |
 | 5 | Multi-card In-Between: pot, two visible cards, bet, third card, settlement, penalty logic, pre-signed fallback graph, transcript replay | not started |
@@ -20,14 +20,23 @@ behind the code.
 
 | Path | Phase | Status |
 |---|---|---|
-| `spec/` | 1 | empty |
-| `spec/test-vectors/` | 1 | empty |
-| `packages/protocol-types/` | 1 | empty |
-| `packages/state-engine/` | 2 | empty |
-| `packages/script-templates/` | 2 | empty |
+| `spec/state-machine.md` | 1 | **complete** |
+| `spec/tx-types.md` | 1 | **complete** |
+| `spec/script-templates.md` | 1 | **complete** |
+| `spec/timeout-rules.md` | 1 | **complete** |
+| `spec/recovery-rules.md` | 1 | **complete** |
+| `spec/serialisation.md` | 1 | **complete** |
+| `spec/ordering-rules.md` | 1 | **complete** |
+| `spec/card-protocol.md` | 1 | **complete (MVP); extended model deferred to Phase 4** |
+| `spec/wire-protocol.md` | 1 | **complete** |
+| `spec/peer-discovery.md` | 1 | **complete** |
+| `spec/test-vectors/` | 1 | **complete (8 vectors)** |
+| `packages/protocol-types/` | 1 | **complete (canonical encoding + types + hashing + tests)** |
+| `packages/state-engine/` | 2 | **complete (full In-Between v1 state machine + tests)** |
+| `packages/script-templates/` | 2 | **complete (10 BSV script builders + structural tests)** |
 | `packages/crypto-cards/` | 4 | empty |
 | `apps/client-web/` | 3+ | empty |
-| `apps/relay-go/` | 3+ | empty |
+| `apps/relay-go/` | 3+ | empty (Go state-engine port also deferred to here) |
 | `apps/indexer-go/` | 3+ | empty |
 | `apps/spv-service-go/` | 3+ | empty |
 | `tests/integration/` | 3+ | empty |

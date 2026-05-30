@@ -1,0 +1,8 @@
+# Force LF line endings for text — keeps Windows + macOS + Linux consistent.
+* text=auto eol=lf
+
+# Binary files
+*.docx binary
+*.png binary
+*.jpg binary
+*.ico binary

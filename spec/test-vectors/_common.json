@@ -1,0 +1,42 @@
+{
+  "_comment": "Shared rule set used by the test vectors. Implementations should treat this file as a reference, not as an inclusion mechanism (JSON has no native include); each vector inlines a self-contained rule_set in practice.",
+  "rule_set_in_between_v1": {
+    "game_type": "in_between",
+    "player_count_min": 2,
+    "player_count_max": 4,
+    "stake_amount": 1000,
+    "min_bet": 1,
+    "max_bet": 100,
+    "decision_timeout_blocks": 6,
+    "recovery_timeout_blocks": 144,
+    "invitation_window_blocks": 18,
+    "default_action_by_state": {
+      "S8_BET_DECISION": "pass"
+    },
+    "penalty_schedule": {
+      "non_reveal": 100,
+      "bad_reveal": 200,
+      "consecutive_cards": 0,
+      "equal_cards": 0
+    },
+    "deck_format": 52,
+    "shuffle_algorithm_version": 1,
+    "settlement_rules": {
+      "in_between_win_multiplier": 1,
+      "in_between_loss_multiplier": 1,
+      "consecutive_cards_penalty": 1,
+      "equal_cards_penalty": 2
+    },
+    "recovery_rules": {
+      "refund_stakes_to_funders": true,
+      "apply_non_reveal_penalty": true,
+      "apply_bad_reveal_penalty": true
+    },
+    "serialisation_version": 1
+  },
+  "_canonical_player_seats": {
+    "0": "alice",
+    "1": "bob",
+    "2": "carol"
+  }
+}

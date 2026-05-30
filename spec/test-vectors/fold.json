@@ -1,0 +1,83 @@
+{
+  "vector_id": "fold",
+  "description": "Phase 4+ vector (RESERVED). Demonstrates that a fold surrender transitions a player's concealed-hand custody to dead-hand state without revealing card faces. Skipped in In-Between v1 (Phase 5) because In-Between has no concealed private hand.",
+  "phase_min": 4,
+  "rule_set": {
+    "game_type": "five_card_draw_placeholder",
+    "player_count_min": 2,
+    "player_count_max": 4,
+    "stake_amount": 1000,
+    "min_bet": 1,
+    "max_bet": 100,
+    "decision_timeout_blocks": 6,
+    "recovery_timeout_blocks": 144,
+    "invitation_window_blocks": 18,
+    "default_action_by_state": { "S8_BET_DECISION": "pass" },
+    "penalty_schedule": { "non_reveal": 100, "bad_reveal": 200, "consecutive_cards": 0, "equal_cards": 0 },
+    "deck_format": 52,
+    "shuffle_algorithm_version": 1,
+    "settlement_rules": { "_placeholder": true },
+    "recovery_rules": { "refund_stakes_to_funders": true, "apply_non_reveal_penalty": true, "apply_bad_reveal_penalty": true },
+    "serialisation_version": 1
+  },
+  "initial_state": {
+    "state_class": "S8_BET_DECISION_EXTENDED_PLACEHOLDER",
+    "game_id": "0000000000000000000000000000000000000000000000000000000000000003",
+    "round_number": 1,
+    "acting_player_seat": 0,
+    "players": [
+      { "seat": 0, "value_signing_pubkey": "02ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c", "participation_status": "active", "concealed_card_refs": ["card-utxo-0-A", "card-utxo-0-B"] }
+    ],
+    "pot_value": 1000,
+    "visible_cards": [],
+    "decision_deadline_block_height": 200,
+    "recovery_deadline_block_height": 244
+  },
+  "inputs": [
+    {
+      "kind": "Action",
+      "action_type": "Fold",
+      "player_seat": 0,
+      "action_nonce": "0000000000000000000000000000000000000000000000000000000000000003",
+      "current_block_height": 150
+    }
+  ],
+  "expected_result": "ok",
+  "expected_state": {
+    "state_class": "S11_ROTATE_TURN",
+    "game_id": "0000000000000000000000000000000000000000000000000000000000000003",
+    "round_number": 1,
+    "acting_player_seat": 0,
+    "players": [
+      { "seat": 0, "value_signing_pubkey": "02ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c2c5b3a14ce0c", "participation_status": "folded", "concealed_card_refs": [] }
+    ],
+    "pot_value": 1000,
+    "visible_cards": [],
+    "decision_deadline_block_height": null,
+    "recovery_deadline_block_height": 244
+  },
+  "expected_emitted_txs": [
+    {
+      "class": "TXC_FOLD",
+      "binding": {
+        "game_id": "0000000000000000000000000000000000000000000000000000000000000003",
+        "round_number": 1,
+        "referenced_state_hash": "previous-state-hash",
+        "acting_player_seat": 0,
+        "economic_state": { "pot": 1000 },
+        "successor_state_commitment": "computed"
+      },
+      "outputs": [
+        { "kind": "fold-surrender", "value_sats": 0, "preserved_encryption": true, "card_ref": "card-utxo-0-A" },
+        { "kind": "fold-surrender", "value_sats": 0, "preserved_encryption": true, "card_ref": "card-utxo-0-B" },
+        { "kind": "OP_RETURN_metadata", "value_sats": 0 }
+      ]
+    }
+  ],
+  "asserts": [
+    "no expected_emitted_txs output has the card_face field set",
+    "all card-custody outputs of the folder are consumed",
+    "all produced fold-surrender outputs have preserved_encryption == true"
+  ],
+  "notes": "RESERVED — to be activated when the extended one-UTXO-per-card model lands in Phase 4. In-Between v1 does not exercise this vector."
+}

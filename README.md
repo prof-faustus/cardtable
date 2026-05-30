@@ -1,5 +1,9 @@
 # cardtable — Dealerless Distributed Card-Game Protocol on BSV
 
+[![CI](https://github.com/prof-faustus/cardtable/actions/workflows/ci.yml/badge.svg)](https://github.com/prof-faustus/cardtable/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+
 > **Research code, in early scaffolding.** This repository implements the
 > protocol specified in [`CLAUDE.md`](CLAUDE.md) and the
 > [Formal Architecture document](Formal_Architecture_Dealerless_Card_Game_BSV_v1.docx)
