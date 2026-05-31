@@ -8,7 +8,8 @@
   "packageManager": "pnpm@9.0.0",
   "workspaces": [
     "packages/*",
-    "apps/client-web"
+    "apps/client-web",
+    "tools/transcript-verifier"
   ],
   "scripts": {
     "build": "pnpm -r --filter \"@cardtable/*\" build",

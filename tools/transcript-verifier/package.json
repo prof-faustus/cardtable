@@ -1,0 +1,27 @@
+{
+  "name": "@cardtable/transcript-verifier",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "TypeScript transcript-verifier CLI. Reads a JSONL transcript file, replays every action through verifyAndApply (the crypto-gated production gate), and prints a YES/NO answer plus the final state hash. The browser-side equivalent of apps/relay-go/cmd/indexer.",
+  "license": "MIT",
+  "bin": {
+    "cardtable-transcript-verifier": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b tsconfig.json"
+  },
+  "dependencies": {
+    "@cardtable/protocol-types": "workspace:*",
+    "@cardtable/state-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}
