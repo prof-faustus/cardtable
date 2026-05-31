@@ -145,13 +145,18 @@ export function applyAction(
     return err(protocolError('STALE_STATE', 'action.game_id mismatch'));
   }
 
-  // Action class allowance for this state class.
-  const legal = getLegalActions(state.state_class);
-  if (!legal.includes(action.action_type)) {
-    return err(protocolError(
-      'INVALID_ACTION_FOR_STATE',
-      `${action.action_type} not legal at ${state.state_class}`,
-    ));
+  // Action class allowance for this state class. Recovery is a global
+  // outcome that bypasses the per-state allow list; it is gated only
+  // by the recovery deadline checked in applyRecovery. This matches
+  // the Go engine's special case.
+  if (action.action_type !== 'Recovery') {
+    const legal = getLegalActions(state.state_class);
+    if (!legal.includes(action.action_type)) {
+      return err(protocolError(
+        'INVALID_ACTION_FOR_STATE',
+        `${action.action_type} not legal at ${state.state_class}`,
+      ));
+    }
   }
 
   switch (action.action_type) {
