@@ -12,3 +12,5 @@ export { combineEntropy, commitEntropy, commitEntropyHex, constantTimeEquals, ve
 export { shuffleCanonicalDeck } from './shuffle.js';
 export { buildDeckCommitment, commitCard, verifyRevealProof } from './deck.js';
 export type { CardCommitment, DeckCommitment, RevealProof } from './deck.js';
+export { encryptForHolder, decryptForHolder } from './conceal.js';
+export type { ConcealedEnvelope } from './conceal.js';

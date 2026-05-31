@@ -21,7 +21,8 @@
     "typecheck": "tsc -b tsconfig.json"
   },
   "dependencies": {
-    "@cardtable/protocol-types": "workspace:*"
+    "@cardtable/protocol-types": "workspace:*",
+    "@noble/secp256k1": "^2.1.0"
   },
   "devDependencies": {
     "typescript": "^5.4.5",
