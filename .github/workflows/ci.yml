@@ -77,9 +77,15 @@ jobs:
       - name: install workspace deps
         run: pnpm install --frozen-lockfile=false
 
-      - name: build the relay binary
+      - name: build the relay binary (linux/macos)
+        if: runner.os != 'Windows'
         working-directory: apps/relay-go
         run: go build -o ../../bin/relay ./cmd/relay
+
+      - name: build the relay binary (windows)
+        if: runner.os == 'Windows'
+        working-directory: apps/relay-go
+        run: go build -o ../../bin/relay.exe ./cmd/relay
 
       - name: build TS workspace (codecs needed by the integration package)
         run: pnpm build
