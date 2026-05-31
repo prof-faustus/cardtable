@@ -80,9 +80,11 @@ function unwrap<T>(r: { ok: true; value: T } | { ok: false; error: unknown }): T
 }
 
 let counter = 0;
-function nextNonce(tag: string): SignedAction['action_nonce'] {
+function nextNonce(_tag: string): SignedAction['action_nonce'] {
+  // tag retained as a comment-only field; the action_nonce itself
+  // MUST be lowercase hex per asActionNonce's regex.
   counter += 1;
-  return asActionNonce((tag + counter.toString(16)).padStart(64, '0'));
+  return asActionNonce(counter.toString(16).padStart(64, '0'));
 }
 
 function cardRevealAction(
