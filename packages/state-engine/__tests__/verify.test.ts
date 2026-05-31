@@ -154,8 +154,11 @@ describe('verifyAndApply — entropy commit/reveal mental-poker gate', () => {
     s = unwrap(await verifyAndApply(s, makeJoin(asSeat(1)), rs, h));
     s = unwrap(await verifyAndApply(s, makeLock(), rs, h));
 
-    // 32-char (16-byte) commitment — invalid shape.
-    const badCommit = makeCommit(asSeat(0), 'a'.repeat(32), 'bad');
+    // 32-char (16-byte) commitment — invalid shape. Build the action
+    // manually so `asHash256` (which rejects non-64-char input) does
+    // not throw before verifyAndApply has a chance to reject.
+    const valid = makeCommit(asSeat(0), '0'.repeat(64), 'bad');
+    const badCommit = { ...valid, commitment_hash: 'a'.repeat(32) as unknown as typeof valid.commitment_hash };
     const r = await verifyAndApply(s, badCommit, rs, h);
     expect(r.ok).toBe(false);
   });
