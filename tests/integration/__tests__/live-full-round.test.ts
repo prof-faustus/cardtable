@@ -136,21 +136,29 @@ describe.skipIf(!RUN_LIVE || !RUN_FULL)('full mental-poker round against the liv
     );
 
     let cursor = -1;
-    const awaitTableState = async (): Promise<ParsedTableState> => {
+    // Wait for the next interesting frame after `cursor`: either a
+    // MsgTableState (success) or a MsgErrorReply (failure — throw so
+    // the relay's rejection surfaces immediately instead of the test
+    // timing out at 30s).
+    const awaitTableState = async (label: string): Promise<ParsedTableState> => {
       const frame = await client.next((f) => {
         const idx = client.received.indexOf(f);
-        return idx > cursor && f.type === MsgType.TableState;
+        return idx > cursor && (f.type === MsgType.TableState || f.type === MsgType.ErrorReply);
       });
       cursor = client.received.indexOf(frame);
+      if (frame.type === MsgType.ErrorReply) {
+        const body = JSON.parse(new TextDecoder().decode(frame.payload)) as { code: string; context: string };
+        throw new Error(`relay rejected ${label}: ${body.code} — ${body.context}`);
+      }
       return JSON.parse(new TextDecoder().decode(frame.payload)) as ParsedTableState;
     };
-    const sendAndAwait = async (action: unknown): Promise<ParsedTableState> => {
+    const sendAndAwait = async (label: string, action: unknown): Promise<ParsedTableState> => {
       await sendAction(client, action);
-      return awaitTableState();
+      return awaitTableState(label);
     };
 
     // Joins.
-    await sendAndAwait({
+    await sendAndAwait('Join seat 0', {
       game_id: GAME_ID,
       round_number: 0,
       referenced_state_hash: '0'.repeat(64),
@@ -162,7 +170,7 @@ describe.skipIf(!RUN_LIVE || !RUN_FULL)('full mental-poker round against the liv
       player_pubkey: PUBKEYS[0],
       stake_amount: 1000,
     });
-    const afterJoin1 = await sendAndAwait({
+    const afterJoin1 = await sendAndAwait('Join seat 1', {
       game_id: GAME_ID,
       round_number: 0,
       referenced_state_hash: '0'.repeat(64),
@@ -177,7 +185,7 @@ describe.skipIf(!RUN_LIVE || !RUN_FULL)('full mental-poker round against the liv
     expect(afterJoin1.players.length).toBe(2);
 
     // Lock.
-    const locked = await sendAndAwait({
+    const locked = await sendAndAwait('TableLock', {
       game_id: GAME_ID,
       round_number: 0,
       referenced_state_hash: '0'.repeat(64),
@@ -191,7 +199,7 @@ describe.skipIf(!RUN_LIVE || !RUN_FULL)('full mental-poker round against the liv
 
     // Entropy commits.
     for (let i = 0; i < 2; i++) {
-      await sendAndAwait({
+      await sendAndAwait(`EntropyCommit seat ${i}`, {
         game_id: GAME_ID,
         round_number: 0,
         referenced_state_hash: '0'.repeat(64),
@@ -208,7 +216,7 @@ describe.skipIf(!RUN_LIVE || !RUN_FULL)('full mental-poker round against the liv
     // combined_entropy + deck_commitment_hash in the TableState push.
     let postReveal: ParsedTableState | null = null;
     for (let i = 0; i < 2; i++) {
-      postReveal = await sendAndAwait({
+      postReveal = await sendAndAwait(`EntropyReveal seat ${i}`, {
         game_id: GAME_ID,
         round_number: 0,
         referenced_state_hash: '0'.repeat(64),
@@ -252,17 +260,17 @@ describe.skipIf(!RUN_LIVE || !RUN_FULL)('full mental-poker round against the liv
     };
 
     // CardReveal position 0: S5 -> S6
-    const afterCard0 = await sendAndAwait(cardRevealAction(0));
+    const afterCard0 = await sendAndAwait('CardReveal pos 0', cardRevealAction(0));
     expect(afterCard0.state_class).toBe('S6_CARD_REVEAL_FIRST');
     expect(afterCard0.visible_cards.length).toBe(1);
 
     // CardReveal position 1: S6 -> S8 (engine auto-advances S7 -> S8)
-    const afterCard1 = await sendAndAwait(cardRevealAction(1));
+    const afterCard1 = await sendAndAwait('CardReveal pos 1', cardRevealAction(1));
     expect(afterCard1.state_class).toBe('S8_BET_DECISION');
     expect(afterCard1.acting_player_seat).not.toBeNull();
 
     // Bet.
-    const afterBet = await sendAndAwait({
+    const afterBet = await sendAndAwait('BetAction', {
       game_id: GAME_ID,
       round_number: 0,
       referenced_state_hash: '0'.repeat(64),
@@ -277,11 +285,11 @@ describe.skipIf(!RUN_LIVE || !RUN_FULL)('full mental-poker round against the liv
     expect(afterBet.pot_value).toBe(10);
 
     // CardReveal position 2: S9 -> S10
-    const afterCard2 = await sendAndAwait(cardRevealAction(2));
+    const afterCard2 = await sendAndAwait('CardReveal pos 2', cardRevealAction(2));
     expect(afterCard2.state_class).toBe('S10_SETTLED_ROUND');
 
     // Settle: S10 -> S11
-    const afterSettle = await sendAndAwait({
+    const afterSettle = await sendAndAwait('Settle', {
       game_id: GAME_ID,
       round_number: 0,
       referenced_state_hash: '0'.repeat(64),
