@@ -96,6 +96,8 @@ jobs:
       # ports on Windows).
       - name: start relay (all OSes)
         shell: bash
+        env:
+          GAME_ID: '00000000000000000000000000000000000000000000000000000000000000aa'
         run: |
           set -e
           if [ "$RUNNER_OS" = "Windows" ]; then
@@ -110,7 +112,7 @@ jobs:
           # Launch in background. Git Bash on Windows treats this the
           # same way POSIX shells do — the child inherits a detached
           # session and the parent shell can exit cleanly.
-          "$BIN" --addr :8080 --ws-addr :8081 --game demo-game --start-height 100 > relay.log 2>&1 &
+          "$BIN" --addr :8080 --ws-addr :8081 --game "$GAME_ID" --start-height 100 > relay.log 2>&1 &
           echo $! > relay.pid
           echo "started relay pid=$(cat relay.pid)"
           sleep 2
@@ -146,6 +148,7 @@ jobs:
         env:
           CARDTABLE_RUN_LIVE: '1'
           CARDTABLE_WS_URL: ws://127.0.0.1:8081/ws
+          CARDTABLE_GAME_ID: '00000000000000000000000000000000000000000000000000000000000000aa'
         run: pnpm --filter @cardtable/integration-tests test
 
       - name: print relay log on failure
@@ -161,6 +164,82 @@ jobs:
             kill "$(cat relay.pid)" 2>/dev/null || true
           fi
 
+  live-full-round:
+    name: live full-round mental poker (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: install workspace deps
+        run: pnpm install --frozen-lockfile=false
+
+      - name: build the relay binary (linux/macos)
+        if: runner.os != 'Windows'
+        working-directory: apps/relay-go
+        run: go build -o ../../bin/relay ./cmd/relay
+
+      - name: build the relay binary (windows)
+        if: runner.os == 'Windows'
+        working-directory: apps/relay-go
+        run: go build -o ../../bin/relay.exe ./cmd/relay
+
+      - name: build TS workspace
+        run: pnpm build
+
+      - name: start relay (32-byte hex game id)
+        shell: bash
+        env:
+          GAME_ID: '00000000000000000000000000000000000000000000000000000000000000aa'
+        run: |
+          set -e
+          if [ "$RUNNER_OS" = "Windows" ]; then BIN=./bin/relay.exe; else BIN=./bin/relay; fi
+          "$BIN" --addr :8080 --ws-addr :8081 --game "$GAME_ID" --start-height 100 > relay.log 2>&1 &
+          echo $! > relay.pid
+          sleep 2
+
+      - name: wait for /healthz
+        shell: bash
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8081/healthz >/dev/null 2>&1; then
+              echo "relay up"; exit 0
+            fi
+            sleep 1
+          done
+          echo 'relay never came up'
+          cat relay.log || true
+          exit 1
+
+      - name: run full-round mental-poker integration test
+        env:
+          CARDTABLE_RUN_LIVE: '1'
+          CARDTABLE_RUN_FULL_ROUND: '1'
+          CARDTABLE_WS_URL: ws://127.0.0.1:8081/ws
+          CARDTABLE_GAME_ID: '00000000000000000000000000000000000000000000000000000000000000aa'
+        run: pnpm --filter @cardtable/integration-tests test
+
+      - name: print relay log on failure
+        if: failure()
+        shell: bash
+        run: cat relay.log || true
+
+      - name: stop relay
+        if: always()
+        shell: bash
+        run: |
+          if [ -f relay.pid ]; then kill "$(cat relay.pid)" 2>/dev/null || true; fi
+
   docker-relay:
     name: docker image build + container smoke test
     runs-on: ubuntu-latest
@@ -172,9 +251,30 @@ jobs:
         with:
           node-version: '22'
 
-      - name: docker buildx build
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      # Cross-platform sanity check: build the relay image for both
+      # linux/amd64 and linux/arm64. Buildx pushes a single multi-arch
+      # manifest (just to the local docker engine via --load, scoped
+      # to amd64). The arm64 cross-build proves the Dockerfile is
+      # not silently x86-only.
+      - name: docker buildx build multi-arch
         run: |
           docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --tag cardtable-relay:ci \
+            --file apps/relay-go/Dockerfile \
+            .
+
+      # Re-run a single-platform load so the subsequent docker run can
+      # use the native amd64 image (buildx multi-arch builds go to the
+      # OCI buildx cache, not the daemon).
+      - name: docker buildx build (amd64 load)
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
             --tag cardtable-relay:ci \
             --file apps/relay-go/Dockerfile \
             --load \
@@ -192,7 +292,9 @@ jobs:
             --name cardtable-relay \
             -p 8080:8080 -p 8081:8081 \
             cardtable-relay:ci \
-            --addr :8080 --ws-addr :8081 --game demo-game --start-height 100
+            --addr :8080 --ws-addr :8081 \
+            --game 00000000000000000000000000000000000000000000000000000000000000aa \
+            --start-height 100
 
       - name: wait for /healthz
         run: |
@@ -210,6 +312,7 @@ jobs:
         env:
           CARDTABLE_RUN_LIVE: '1'
           CARDTABLE_WS_URL: ws://localhost:8081/ws
+          CARDTABLE_GAME_ID: '00000000000000000000000000000000000000000000000000000000000000aa'
         run: pnpm --filter @cardtable/integration-tests test
 
       - name: print container logs on failure

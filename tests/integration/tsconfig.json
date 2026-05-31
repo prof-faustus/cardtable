@@ -9,7 +9,8 @@
   },
   "references": [
     { "path": "../../packages/protocol-types" },
-    { "path": "../../packages/wire-ts" }
+    { "path": "../../packages/wire-ts" },
+    { "path": "../../packages/crypto-cards" }
   ],
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules", "__tests__"]

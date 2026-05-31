@@ -12,6 +12,7 @@
     "typecheck": "tsc -b tsconfig.json"
   },
   "dependencies": {
+    "@cardtable/crypto-cards": "workspace:*",
     "@cardtable/protocol-types": "workspace:*",
     "@cardtable/wire-ts": "workspace:*",
     "ws": "^8.18.0"

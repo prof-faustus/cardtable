@@ -25,6 +25,7 @@ import { MsgType, VERSION_1_0, decode, encode, type Frame } from '@cardtable/wir
 // reachable. 127.0.0.1 is the lowest-friction cross-OS choice.
 const WS_URL = process.env['CARDTABLE_WS_URL'] ?? 'ws://127.0.0.1:8081/ws';
 const RUN_LIVE = process.env['CARDTABLE_RUN_LIVE'] === '1';
+const GAME_ID = process.env['CARDTABLE_GAME_ID'] ?? '00000000000000000000000000000000000000000000000000000000000000aa';
 
 interface LiveClient {
   readonly sock: WebSocket;
@@ -107,7 +108,7 @@ describe.skipIf(!RUN_LIVE)('live relay over WebSocket', () => {
 
   it('Valid Join is accepted; relay broadcasts MsgActionAccepted and MsgTableState', async () => {
     const seat0Action = {
-      game_id: 'demo-game',
+      game_id: GAME_ID,
       round_number: 0,
       referenced_state_hash: '0'.repeat(64),
       action_type: 'Join',
@@ -134,7 +135,7 @@ describe.skipIf(!RUN_LIVE)('live relay over WebSocket', () => {
     // previous test; the relay's session was seeded with seat 0
     // already joined.
     const bad = {
-      game_id: 'demo-game',
+      game_id: GAME_ID,
       round_number: 0,
       referenced_state_hash: '0'.repeat(64),
       action_type: 'Join',

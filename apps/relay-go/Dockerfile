@@ -39,4 +39,4 @@ COPY --from=builder /out/indexer /usr/local/bin/indexer
 EXPOSE 8080 8081
 
 ENTRYPOINT ["/usr/local/bin/relay"]
-CMD ["--addr", ":8080", "--ws-addr", ":8081", "--game", "demo-game", "--start-height", "100"]
+CMD ["--addr", ":8080", "--ws-addr", ":8081", "--game", "00000000000000000000000000000000000000000000000000000000000000aa", "--start-height", "100"]

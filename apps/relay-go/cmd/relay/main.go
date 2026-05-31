@@ -23,7 +23,13 @@ import (
 func main() {
 	addr := flag.String("addr", ":8080", "TCP listen address (host:port)")
 	wsAddr := flag.String("ws-addr", ":8081", "WebSocket HTTP listen address (host:port)")
-	gameId := flag.String("game", "demo-game", "game_id for the single hosted session")
+	// game_id MUST be 64 lowercase hex chars: the mental-poker
+	// verification gate at session.verifyCrypto.entropy passes the
+	// game_id through hex.DecodeString to feed into the 32-byte
+	// commitment input. A non-hex value would make every
+	// EntropyReveal fail with SERIALISATION_ERROR. The default below
+	// is a 32-byte zero hash for development.
+	gameId := flag.String("game", "00000000000000000000000000000000000000000000000000000000000000aa", "game_id (64-char lowercase hex)")
 	stake := flag.Uint64("stake", 1000, "session stake amount in sats")
 	minBet := flag.Uint64("min-bet", 1, "minimum bet in sats")
 	maxBet := flag.Uint64("max-bet", 100, "maximum bet in sats")
