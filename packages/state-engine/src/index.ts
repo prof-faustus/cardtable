@@ -26,3 +26,6 @@ export type { CandidateSnapshot } from './ordering.js';
 export { replay, chainsFrom } from './replay.js';
 
 export { verifyAndApply } from './verify.js';
+
+export { enumerateFallbackGraph } from './fallback.js';
+export type { FallbackBranch, FallbackKind, LockTimeSpec } from './fallback.js';
