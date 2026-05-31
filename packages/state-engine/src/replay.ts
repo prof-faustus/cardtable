@@ -15,6 +15,7 @@ import type {
 } from '@cardtable/protocol-types';
 import { err, ok, protocolError } from '@cardtable/protocol-types';
 import { applyAction, initialState } from './engine.js';
+import { verifyAndApply } from './verify.js';
 
 /**
  * Replay a sequence of signed actions against a fresh initial state.
@@ -77,6 +78,48 @@ export function chainsFrom(
   // We accept either the prior's state_hash matching next.prior_state_hash,
   // OR (for the initial zero-hash) a null prior chain.
   return next.prior_state_hash === prior.state_hash;
+}
+
+/**
+ * Replay with cryptographic verification — the conformance harness.
+ *
+ * For each action in the transcript, runs verifyAndApply rather than
+ * the bare pure engine. A transcript that an honest relay accepted
+ * MUST replay cleanly here too; any transcript that triggers
+ * INVALID_REVEAL_PROOF in this function would not have been accepted
+ * by an honest relay in the first place.
+ *
+ * Use this in audits and indexer back-fills: it is the byte-for-byte
+ * conformance surface for "did this session run honestly?".
+ */
+export async function replayWithVerification(args: {
+  readonly game_id: GameId;
+  readonly rule_set_hash: RuleSetHash;
+  readonly rule_set: RuleSet;
+  readonly recovery_deadline: BlockHeight;
+  readonly actions: readonly SignedAction[];
+  readonly block_heights: readonly BlockHeight[];
+}): Promise<Result<RoundState, ProtocolError>> {
+  let state = initialState(args.game_id, args.rule_set_hash, args.recovery_deadline);
+  for (let i = 0; i < args.actions.length; i++) {
+    const action = args.actions[i];
+    if (action === undefined) {
+      return err(protocolError('SERIALISATION_ERROR', `replayWithVerification: action ${i} is undefined`));
+    }
+    const heightCandidate = args.block_heights[i] ?? args.block_heights[args.block_heights.length - 1];
+    if (heightCandidate === undefined) {
+      return err(protocolError('SERIALISATION_ERROR', `replayWithVerification: no block height for action ${i}`));
+    }
+    const result = await verifyAndApply(state, action, args.rule_set, heightCandidate);
+    if (!result.ok) {
+      return err(protocolError(
+        result.error.code,
+        `replayWithVerification: action ${i} (${action.action_type}) rejected: ${result.error.context ?? ''}`,
+      ));
+    }
+    state = result.value;
+  }
+  return ok(state);
 }
 
 // re-export Hash256 type for callers that need it indirectly
