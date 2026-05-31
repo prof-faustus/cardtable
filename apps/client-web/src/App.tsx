@@ -15,6 +15,11 @@ export function App(): JSX.Element {
   const lastError = useTableStore((s) => s.lastError);
   const settlement = useTableStore((s) => s.settlement);
 
+  const connection = useTableStore((s) => s.connection);
+  const relayUrl = useTableStore((s) => s.relayUrl);
+  const connect = useTableStore((s) => s.connect);
+  const disconnect = useTableStore((s) => s.disconnect);
+
   const seatJoin = useTableStore((s) => s.seatJoin);
   const tableLock = useTableStore((s) => s.tableLock);
   const entropyCommit = useTableStore((s) => s.entropyCommit);
@@ -28,6 +33,18 @@ export function App(): JSX.Element {
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 760, margin: '2rem auto', padding: '0 1rem' }}>
       <h1>cardtable — In-Between (open information)</h1>
+
+      <section style={{ marginTop: '0.5rem', padding: '0.5rem', background: '#eef' }}>
+        <strong>Connection:</strong> <code data-testid="connection-mode">{connection}</code>
+        {relayUrl && <> @ <code>{relayUrl}</code></>}{' '}
+        <button onClick={() => void connect('ws://localhost:8081/ws')} disabled={connection === 'online' || connection === 'connecting'}>
+          Connect to relay
+        </button>{' '}
+        <button onClick={disconnect} disabled={connection === 'offline'}>
+          Disconnect (offline mode)
+        </button>
+      </section>
+
       <p style={{ color: '#555' }}>
         Phase 3c.1 reference UI. State class:{' '}
         <code data-testid="state-class">{state.state_class}</code>; pot:{' '}

@@ -11,6 +11,8 @@ import {
   computeSettlement,
   initialState,
 } from '@cardtable/state-engine';
+import { MsgType, type Frame } from '@cardtable/wire-ts';
+import { RelayClient, type RelayEvent } from './relay-client.js';
 import {
   asActionNonce,
   asBlockHeight,
@@ -89,15 +91,22 @@ interface RecentError {
   readonly context: string;
 }
 
+export type ConnectionMode = 'offline' | 'connecting' | 'online' | 'error';
+
 interface TableStore {
   readonly state: RoundState;
   readonly ruleSet: RuleSet;
   readonly height: BlockHeight;
   readonly lastError: RecentError | null;
   readonly settlement: SettlementResult | null;
+  readonly connection: ConnectionMode;
+  readonly relayUrl: string | null;
 
   reset: () => void;
   setHeight: (h: number) => void;
+
+  connect: (url: string) => Promise<void>;
+  disconnect: () => void;
 
   seatJoin: (seat: Seat) => void;
   tableLock: () => void;
@@ -117,25 +126,68 @@ function pubkeyForSeat(seat: Seat): ReturnType<typeof asPubkey33> {
   return seat === 0 ? PUB_0 : PUB_1;
 }
 
+// Module-scoped — single RelayClient per store instance.
+let relay: RelayClient | null = null;
+let relayUnsub: (() => void) | null = null;
+
 export const useTableStore = create<TableStore>((set, get) => ({
   state: startState(),
   ruleSet: defaultRuleSet(),
   height: asBlockHeight(100),
   lastError: null,
   settlement: null,
+  connection: 'offline',
+  relayUrl: null,
 
   reset: () => {
     nonceCounter = 0;
+    if (relay) {
+      relay.close();
+      relay = null;
+      relayUnsub?.();
+      relayUnsub = null;
+    }
     set({
       state: startState(),
       ruleSet: defaultRuleSet(),
       height: asBlockHeight(100),
       lastError: null,
       settlement: null,
+      connection: 'offline',
+      relayUrl: null,
     });
   },
 
   setHeight: (h) => set({ height: asBlockHeight(h) }),
+
+  connect: async (url) => {
+    if (relay) {
+      relay.close();
+      relayUnsub?.();
+    }
+    relay = new RelayClient({ url });
+    set({ connection: 'connecting', relayUrl: url });
+    relayUnsub = relay.subscribe((ev) => onRelayEvent(set, ev));
+    try {
+      await relay.connect();
+      set({ connection: 'online' });
+    } catch (e) {
+      set({
+        connection: 'error',
+        lastError: { at: Date.now(), code: 'STATE_NOT_FOUND', context: (e as Error).message },
+      });
+    }
+  },
+
+  disconnect: () => {
+    if (relay) {
+      relay.close();
+      relay = null;
+      relayUnsub?.();
+      relayUnsub = null;
+    }
+    set({ connection: 'offline', relayUrl: null });
+  },
 
   seatJoin: (seat) => {
     const { state, ruleSet, height } = get();
@@ -274,6 +326,20 @@ function apply(
   height: BlockHeight,
   computeSettle = false,
 ): void {
+  // When connected, the relay is the source of truth: send the action
+  // over the wire and let the inbound MsgTableState update local state.
+  if (relay) {
+    void relay.sendAction(action).catch((e) => {
+      setFn({
+        lastError: {
+          at: Date.now(),
+          code: 'STATE_NOT_FOUND',
+          context: (e as Error).message,
+        },
+      });
+    });
+    return;
+  }
   const result = applyAction(state, action, ruleSet, height);
   if (!result.ok) {
     setFn({
@@ -292,4 +358,66 @@ function apply(
     if (s.ok) settlement = s.value;
   }
   setFn({ state: next, lastError: null, ...(settlement ? { settlement } : {}) });
+}
+
+/**
+ * Translate a RelayClient event into store updates. The relay's
+ * MsgTableState becomes the canonical RoundState; MsgErrorReply
+ * surfaces as lastError; open/close adjust the connection mode.
+ */
+function onRelayEvent(setFn: Setter, ev: RelayEvent): void {
+  switch (ev.kind) {
+    case 'open':
+      setFn({ connection: 'online' });
+      return;
+    case 'close':
+      setFn({ connection: 'offline' });
+      return;
+    case 'error':
+      setFn({
+        connection: 'error',
+        lastError: { at: Date.now(), code: 'STATE_NOT_FOUND', context: ev.message },
+      });
+      return;
+    case 'frame':
+      handleFrame(setFn, ev.frame);
+      return;
+  }
+}
+
+function handleFrame(setFn: Setter, frame: Frame): void {
+  switch (frame.type) {
+    case MsgType.TableState: {
+      try {
+        const next = JSON.parse(new TextDecoder().decode(frame.payload)) as RoundState;
+        setFn({ state: next, lastError: null });
+      } catch (e) {
+        setFn({
+          lastError: { at: Date.now(), code: 'SERIALISATION_ERROR', context: (e as Error).message },
+        });
+      }
+      return;
+    }
+    case MsgType.ErrorReply: {
+      try {
+        const body = JSON.parse(new TextDecoder().decode(frame.payload)) as { code: string; context: string };
+        setFn({
+          lastError: {
+            at: Date.now(),
+            code: body.code as ProtocolError['code'],
+            context: body.context,
+          },
+        });
+      } catch (e) {
+        setFn({
+          lastError: { at: Date.now(), code: 'SERIALISATION_ERROR', context: (e as Error).message },
+        });
+      }
+      return;
+    }
+    // ActionAccepted, PeerAction, Pong, TranscriptResponse — informational only;
+    // the authoritative state update arrives separately via TableState.
+    default:
+      return;
+  }
 }
