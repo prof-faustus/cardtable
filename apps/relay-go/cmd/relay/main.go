@@ -16,11 +16,13 @@ import (
 	"github.com/prof-faustus/cardtable/relay-go/internal/broadcast"
 	"github.com/prof-faustus/cardtable/relay-go/internal/relay"
 	"github.com/prof-faustus/cardtable/relay-go/internal/session"
+	"github.com/prof-faustus/cardtable/relay-go/internal/wsadapter"
 	"github.com/prof-faustus/cardtable/relay-go/pkg/types"
 )
 
 func main() {
-	addr := flag.String("addr", ":8080", "listen address (host:port)")
+	addr := flag.String("addr", ":8080", "TCP listen address (host:port)")
+	wsAddr := flag.String("ws-addr", ":8081", "WebSocket HTTP listen address (host:port)")
 	gameId := flag.String("game", "demo-game", "game_id for the single hosted session")
 	stake := flag.Uint64("stake", 1000, "session stake amount in sats")
 	minBet := flag.Uint64("min-bet", 1, "minimum bet in sats")
@@ -66,18 +68,34 @@ func main() {
 		Logger: logger,
 	}, sess, hub)
 
+	wsSrv := wsadapter.NewServer(wsadapter.Config{
+		Addr: *wsAddr,
+		CurrentHeight: func() types.BlockHeight {
+			return types.BlockHeight(height.Load())
+		},
+		Logger: logger,
+	}, sess, hub)
+
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	logger.Info("starting cardtable relay",
-		"addr", *addr,
+		"tcp_addr", *addr,
+		"ws_addr", *wsAddr,
 		"game_id", *gameId,
 		"stake", *stake,
 		"start_height", *startHeight,
 	)
-	if err := srv.ListenAndServe(ctx); err != nil {
+
+	errs := make(chan error, 2)
+	go func() { errs <- srv.ListenAndServe(ctx) }()
+	go func() { errs <- wsSrv.ListenAndServe(ctx) }()
+
+	if err := <-errs; err != nil {
 		logger.Error("relay terminated with error", "err", err)
 		os.Exit(1)
 	}
+	cancel()
+	<-errs
 	logger.Info("relay shut down cleanly")
 }
