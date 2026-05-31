@@ -22,7 +22,8 @@
   },
   "dependencies": {
     "@cardtable/crypto-cards": "workspace:*",
-    "@cardtable/protocol-types": "workspace:*"
+    "@cardtable/protocol-types": "workspace:*",
+    "@cardtable/script-templates": "workspace:*"
   },
   "devDependencies": {
     "@noble/secp256k1": "^2.1.0",

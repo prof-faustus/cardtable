@@ -7,7 +7,8 @@
   },
   "references": [
     { "path": "../protocol-types" },
-    { "path": "../crypto-cards" }
+    { "path": "../crypto-cards" },
+    { "path": "../script-templates" }
   ],
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules", "__tests__"]

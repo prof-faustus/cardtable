@@ -29,3 +29,6 @@ export { verifyAndApply } from './verify.js';
 
 export { enumerateFallbackGraph } from './fallback.js';
 export type { FallbackBranch, FallbackKind, LockTimeSpec } from './fallback.js';
+
+export { materialiseFallbackGraph } from './fallback-build.js';
+export type { BuildContext, BuiltFallbackBranch } from './fallback-build.js';
