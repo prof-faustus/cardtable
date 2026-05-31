@@ -41,20 +41,24 @@ func main() {
 	slog.SetDefault(logger)
 
 	ruleSet := types.RuleSet{
-		GameType:              types.GameInBetween,
-		PlayerCountMin:        2,
-		PlayerCountMax:        4,
-		StakeAmount:           types.Satoshis(*stake),
-		MinBet:                types.Satoshis(*minBet),
-		MaxBet:                types.Satoshis(*maxBet),
-		DecisionTimeoutBlocks: 6,
-		RecoveryTimeoutBlocks: 144,
+		GameType:                types.GameInBetween,
+		PlayerCountMin:          2,
+		PlayerCountMax:          4,
+		StakeAmount:             types.Satoshis(*stake),
+		MinBet:                  types.Satoshis(*minBet),
+		MaxBet:                  types.Satoshis(*maxBet),
+		DecisionTimeoutBlocks:   6,
+		RecoveryTimeoutBlocks:   144,
+		InvitationWindowBlocks:  18,
+		DeckFormat:              52,
+		ShuffleAlgorithmVersion: 1,
 		SettlementRules: types.SettlementRules{
 			InBetweenWinMultiplier:  1,
 			InBetweenLossMultiplier: 1,
 			ConsecutiveCardsPenalty: 50,
 			EqualCardsPenalty:       100,
 		},
+		SerialisationVersion: 1,
 	}
 	sess := session.New(types.GameId(*gameId), ruleSet, "0000000000000000000000000000000000000000000000000000000000000099", 144)
 	hub := broadcast.New(64)
