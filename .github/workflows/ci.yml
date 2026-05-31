@@ -90,94 +90,76 @@ jobs:
       - name: build TS workspace (codecs needed by the integration package)
         run: pnpm build
 
-      # Linux / macOS: nohup + background; Windows: Start-Process.
-      - name: start relay (linux/macos)
-        if: runner.os != 'Windows'
+      # Git Bash is available on every GH runner; using a single shell
+      # across the matrix avoids PowerShell's Start-Process quirks (which
+      # bind a process that doesn't actually listen on the requested
+      # ports on Windows).
+      - name: start relay (all OSes)
+        shell: bash
         run: |
-          nohup ./bin/relay --addr :8080 --ws-addr :8081 --game demo-game --start-height 100 > relay.log 2>&1 &
+          set -e
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            BIN=./bin/relay.exe
+          else
+            BIN=./bin/relay
+          fi
+          if [ ! -x "$BIN" ] && [ "$RUNNER_OS" != "Windows" ]; then
+            chmod +x "$BIN"
+          fi
+          ls -la ./bin
+          # Launch in background. Git Bash on Windows treats this the
+          # same way POSIX shells do — the child inherits a detached
+          # session and the parent shell can exit cleanly.
+          "$BIN" --addr :8080 --ws-addr :8081 --game demo-game --start-height 100 > relay.log 2>&1 &
           echo $! > relay.pid
-
-      - name: start relay (windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          if (-not (Test-Path ./bin/relay.exe)) {
-            Write-Host 'bin/relay.exe is missing; build step failed silently?'
-            Get-ChildItem ./bin -ErrorAction SilentlyContinue
+          echo "started relay pid=$(cat relay.pid)"
+          sleep 2
+          if ! kill -0 "$(cat relay.pid)" 2>/dev/null; then
+            echo "relay exited within 2s; relay.log:"
+            cat relay.log || true
             exit 1
-          }
-          $p = Start-Process -FilePath ./bin/relay.exe -ArgumentList '--addr', ':8080', '--ws-addr', ':8081', '--game', 'demo-game', '--start-height', '100' -PassThru -RedirectStandardOutput relay.log -RedirectStandardError relay.err
-          $p.Id | Out-File -FilePath relay.pid -Encoding ascii
-          Write-Host "started relay pid=$($p.Id)"
-          Start-Sleep -Seconds 2
-          if ($p.HasExited) {
-            Write-Host "relay exited immediately with code $($p.ExitCode)"
-            if (Test-Path relay.log) { Write-Host '--- relay.log ---'; Get-Content relay.log }
-            if (Test-Path relay.err) { Write-Host '--- relay.err ---'; Get-Content relay.err }
-            exit 1
-          }
-          Write-Host 'relay is still running after 2s'
+          fi
+          echo "relay still running after 2s"
 
-      - name: wait for /healthz (linux/macos)
-        if: runner.os != 'Windows'
+      - name: wait for /healthz (all OSes)
+        shell: bash
         run: |
           for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8081/healthz; then
+            if curl -fsS http://127.0.0.1:8081/healthz >/dev/null 2>&1; then
               echo "relay is up"; exit 0
             fi
             sleep 1
           done
-          echo "relay did not come up; logs:"
-          cat relay.log
-          exit 1
-
-      - name: wait for /healthz (windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          for ($i = 0; $i -lt 30; $i++) {
-            try {
-              Invoke-WebRequest -UseBasicParsing -Uri http://127.0.0.1:8081/healthz -TimeoutSec 2 | Out-Null
-              Write-Host "relay is up"; exit 0
-            } catch {
-              Start-Sleep -Seconds 1
-            }
-          }
-          Write-Host "relay did not come up after 30s; dumping diagnostics:"
-          if (Test-Path relay.log) { Write-Host '--- relay.log ---'; Get-Content relay.log }
-          if (Test-Path relay.err) { Write-Host '--- relay.err ---'; Get-Content relay.err }
-          Write-Host '--- netstat -an ---'
-          netstat -an | Select-String '8081|8080' | ForEach-Object { Write-Host $_ }
+          echo "relay did not come up after 30s"
+          echo "--- relay.log ---"
+          cat relay.log || true
+          echo "--- listening ports (best-effort) ---"
+          if command -v netstat >/dev/null 2>&1; then
+            netstat -an 2>/dev/null | grep -E '8080|8081' || true
+          fi
+          if command -v ss >/dev/null 2>&1; then
+            ss -lntp 2>/dev/null | grep -E '8080|8081' || true
+          fi
           exit 1
 
       - name: run live-relay integration tests
         env:
           CARDTABLE_RUN_LIVE: '1'
-          CARDTABLE_WS_URL: ws://localhost:8081/ws
+          CARDTABLE_WS_URL: ws://127.0.0.1:8081/ws
         run: pnpm --filter @cardtable/integration-tests test
 
       - name: print relay log on failure
-        if: failure() && runner.os != 'Windows'
+        if: failure()
+        shell: bash
         run: cat relay.log || true
 
-      - name: print relay log on failure (windows)
-        if: failure() && runner.os == 'Windows'
-        shell: pwsh
-        run: if (Test-Path relay.log) { Get-Content relay.log }
-
-      - name: stop relay (linux/macos)
-        if: always() && runner.os != 'Windows'
+      - name: stop relay
+        if: always()
+        shell: bash
         run: |
-          if [ -f relay.pid ]; then kill "$(cat relay.pid)" 2>/dev/null || true; fi
-
-      - name: stop relay (windows)
-        if: always() && runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          if (Test-Path relay.pid) {
-            $relayPid = (Get-Content relay.pid).Trim()
-            if ($relayPid) { Stop-Process -Id $relayPid -Force -ErrorAction SilentlyContinue }
-          }
+          if [ -f relay.pid ]; then
+            kill "$(cat relay.pid)" 2>/dev/null || true
+          fi
 
   docker-relay:
     name: docker image build + container smoke test
