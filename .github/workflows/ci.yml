@@ -326,12 +326,68 @@ jobs:
         if: always()
         run: docker stop cardtable-relay || true
 
+  browser-smoke:
+    name: browser smoke (chromium, ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: install workspace deps
+        run: pnpm install --frozen-lockfile=false
+
+      # The workspace build runs `tsc -b && vite build` for
+      # @cardtable/client-web, producing apps/client-web/dist-app/.
+      - name: build TS workspace + client-web bundle
+        run: pnpm build
+
+      - name: install chromium for playwright
+        working-directory: tests/browser-smoke
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: start vite preview
+        working-directory: apps/client-web
+        run: |
+          pnpm exec vite preview --port 4173 --strictPort > vite.log 2>&1 &
+          echo $! > vite.pid
+
+      - name: wait for vite preview
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:4173/ >/dev/null 2>&1; then
+              echo "vite preview up"; exit 0
+            fi
+            sleep 1
+          done
+          echo 'vite preview never came up'
+          cat apps/client-web/vite.log || true
+          exit 1
+
+      - name: run browser smoke tests
+        working-directory: tests/browser-smoke
+        env:
+          CARDTABLE_CLIENT_URL: http://localhost:4173
+        run: pnpm exec playwright test
+
+      - name: print vite log on failure
+        if: failure()
+        run: cat apps/client-web/vite.log || true
+
+      - name: stop vite preview
+        if: always()
+        working-directory: apps/client-web
+        run: |
+          if [ -f vite.pid ]; then kill "$(cat vite.pid)" 2>/dev/null || true; fi
+
   docker-publish:
     name: publish relay image to GHCR
     runs-on: ubuntu-latest
     # Only push on main; PR builds verify, main pushes publish.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [docker-relay, live-relay-integration, live-full-round, typecheck-build-test, go-relay]
+    needs: [docker-relay, live-relay-integration, live-full-round, typecheck-build-test, go-relay, browser-smoke]
     permissions:
       contents: read
       packages: write

@@ -4,3 +4,4 @@ packages:
   - 'tools/transcript-verifier'
   - 'tools/transcript-recorder'
   - 'tests/integration'
+  - 'tests/browser-smoke'

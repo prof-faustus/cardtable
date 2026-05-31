@@ -1,0 +1,16 @@
+{
+  "name": "cardtable-browser-smoke",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Playwright browser smoke tests that load the production Vite build, click through the offline-mode table flow, and (in the live CI job) connect to a running relay and assert state mirrors.",
+  "license": "MIT",
+  "scripts": {
+    "build": "echo 'no build — playwright runs against the live preview directly'",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0",
+    "@types/node": "^20.12.7"
+  }
+}
