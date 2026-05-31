@@ -20,7 +20,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { MsgType, VERSION_1_0, decode, encode, type Frame } from '@cardtable/wire-ts';
 
-const WS_URL = process.env['CARDTABLE_WS_URL'] ?? 'ws://localhost:8081/ws';
+// IPv4-loopback explicitly: Windows' "localhost" resolves to ::1 first on
+// some runners, where the Go relay (which binds 0.0.0.0 / IPv4) is not
+// reachable. 127.0.0.1 is the lowest-friction cross-OS choice.
+const WS_URL = process.env['CARDTABLE_WS_URL'] ?? 'ws://127.0.0.1:8081/ws';
 const RUN_LIVE = process.env['CARDTABLE_RUN_LIVE'] === '1';
 
 interface LiveClient {

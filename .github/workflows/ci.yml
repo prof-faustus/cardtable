@@ -101,8 +101,22 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          if (-not (Test-Path ./bin/relay.exe)) {
+            Write-Host 'bin/relay.exe is missing; build step failed silently?'
+            Get-ChildItem ./bin -ErrorAction SilentlyContinue
+            exit 1
+          }
           $p = Start-Process -FilePath ./bin/relay.exe -ArgumentList '--addr', ':8080', '--ws-addr', ':8081', '--game', 'demo-game', '--start-height', '100' -PassThru -RedirectStandardOutput relay.log -RedirectStandardError relay.err
           $p.Id | Out-File -FilePath relay.pid -Encoding ascii
+          Write-Host "started relay pid=$($p.Id)"
+          Start-Sleep -Seconds 2
+          if ($p.HasExited) {
+            Write-Host "relay exited immediately with code $($p.ExitCode)"
+            if (Test-Path relay.log) { Write-Host '--- relay.log ---'; Get-Content relay.log }
+            if (Test-Path relay.err) { Write-Host '--- relay.err ---'; Get-Content relay.err }
+            exit 1
+          }
+          Write-Host 'relay is still running after 2s'
 
       - name: wait for /healthz (linux/macos)
         if: runner.os != 'Windows'
@@ -123,14 +137,17 @@ jobs:
         run: |
           for ($i = 0; $i -lt 30; $i++) {
             try {
-              Invoke-WebRequest -UseBasicParsing -Uri http://localhost:8081/healthz | Out-Null
+              Invoke-WebRequest -UseBasicParsing -Uri http://127.0.0.1:8081/healthz -TimeoutSec 2 | Out-Null
               Write-Host "relay is up"; exit 0
             } catch {
               Start-Sleep -Seconds 1
             }
           }
-          Write-Host "relay did not come up; logs:"
-          if (Test-Path relay.log) { Get-Content relay.log }
+          Write-Host "relay did not come up after 30s; dumping diagnostics:"
+          if (Test-Path relay.log) { Write-Host '--- relay.log ---'; Get-Content relay.log }
+          if (Test-Path relay.err) { Write-Host '--- relay.err ---'; Get-Content relay.err }
+          Write-Host '--- netstat -an ---'
+          netstat -an | Select-String '8081|8080' | ForEach-Object { Write-Host $_ }
           exit 1
 
       - name: run live-relay integration tests
