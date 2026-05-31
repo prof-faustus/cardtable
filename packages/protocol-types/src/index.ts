@@ -137,3 +137,5 @@ export {
   hexToBytes,
 } from './hash.js';
 export type { TypeTag } from './hash.js';
+
+export { encodeRoundState, computeStateHash, chainsFromHash } from './serialise.js';
