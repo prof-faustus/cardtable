@@ -10,6 +10,7 @@
     "packages/*",
     "apps/client-web",
     "tools/transcript-verifier",
+    "tools/transcript-recorder",
     "tests/integration"
   ],
   "scripts": {

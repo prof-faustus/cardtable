@@ -1,0 +1,30 @@
+{
+  "name": "@cardtable/transcript-recorder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "TypeScript transcript-recorder CLI. Drives a full mental-poker In-Between round against a live relay over WebSocket and writes every accepted action as a JSONL transcript suitable for replay through @cardtable/transcript-verifier or apps/relay-go/cmd/indexer.",
+  "license": "MIT",
+  "bin": {
+    "cardtable-transcript-recorder": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b tsconfig.json"
+  },
+  "dependencies": {
+    "@cardtable/crypto-cards": "workspace:*",
+    "@cardtable/protocol-types": "workspace:*",
+    "@cardtable/wire-ts": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}
