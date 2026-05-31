@@ -144,12 +144,14 @@ jobs:
           fi
           exit 1
 
-      - name: run live-relay integration tests
+      - name: run live-relay smoke tests
         env:
           CARDTABLE_RUN_LIVE: '1'
           CARDTABLE_WS_URL: ws://127.0.0.1:8081/ws
           CARDTABLE_GAME_ID: '00000000000000000000000000000000000000000000000000000000000000aa'
-        run: pnpm --filter @cardtable/integration-tests test
+        # Smoke-only: full-round runs in its own job against a fresh
+        # relay so the two suites don't share session state.
+        run: pnpm --filter @cardtable/integration-tests exec vitest run __tests__/live-relay.test.ts
 
       - name: print relay log on failure
         if: failure()
@@ -227,7 +229,7 @@ jobs:
           CARDTABLE_RUN_FULL_ROUND: '1'
           CARDTABLE_WS_URL: ws://127.0.0.1:8081/ws
           CARDTABLE_GAME_ID: '00000000000000000000000000000000000000000000000000000000000000aa'
-        run: pnpm --filter @cardtable/integration-tests test
+        run: pnpm --filter @cardtable/integration-tests exec vitest run __tests__/live-full-round.test.ts
 
       - name: print relay log on failure
         if: failure()
@@ -308,12 +310,12 @@ jobs:
           docker logs cardtable-relay || true
           exit 1
 
-      - name: run live-relay integration tests against the container
+      - name: run live-relay smoke tests against the container
         env:
           CARDTABLE_RUN_LIVE: '1'
           CARDTABLE_WS_URL: ws://localhost:8081/ws
           CARDTABLE_GAME_ID: '00000000000000000000000000000000000000000000000000000000000000aa'
-        run: pnpm --filter @cardtable/integration-tests test
+        run: pnpm --filter @cardtable/integration-tests exec vitest run __tests__/live-relay.test.ts
 
       - name: print container logs on failure
         if: failure()
