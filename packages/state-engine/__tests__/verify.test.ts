@@ -19,7 +19,13 @@ import type {
   Seat,
   TableLockAction,
 } from '@cardtable/protocol-types';
-import { commitEntropy, fromHex, toHex } from '@cardtable/crypto-cards';
+import {
+  buildDeckCommitment,
+  combineEntropy,
+  commitEntropy,
+  fromHex,
+  toHex,
+} from '@cardtable/crypto-cards';
 import { initialState, verifyAndApply } from '../src/index.js';
 
 function makeRuleSet(): RuleSet {
@@ -168,3 +174,85 @@ function unwrap<T>(r: { ok: true; value: T } | { ok: false; error: unknown }): T
   if (!r.ok) throw new Error(`unwrap: ${JSON.stringify(r.error)}`);
   return r.value;
 }
+
+describe('verifyAndApply — CardReveal verification against deck commitment', () => {
+  it('materialises the deck commitment at S5 and rejects a forged CardReveal', async () => {
+    const rs = makeRuleSet();
+    // Two distinct (player_id, entropy) pairs.
+    const playerIds = [
+      '0101010101010101010101010101010101010101010101010101010101010101',
+      '0303030303030303030303030303030303030303030303030303030303030303',
+    ];
+    const pubkeys = playerIds.map((p) => '02' + p);
+    const entropies = [
+      '0202020202020202020202020202020202020202020202020202020202020202',
+      '0404040404040404040404040404040404040404040404040404040404040404',
+    ];
+    const gameIdBytes = fromHex(GAME_ID_HEX);
+    const commitmentsHex = await Promise.all(
+      entropies.map(async (eHex, i) =>
+        toHex(await commitEntropy(fromHex(eHex), fromHex(playerIds[i]!), gameIdBytes)),
+      ),
+    );
+
+    let s = initialState(asGameId(GAME_ID_HEX), asRuleSetHash('0'.repeat(64)), asBlockHeight(244));
+    const h = asBlockHeight(100);
+
+    for (let i = 0; i < 2; i++) {
+      s = unwrap(
+        await verifyAndApply(s, makeJoin(asSeat(i), asSatoshis(1000), asPubkey33(pubkeys[i]!)), rs, h),
+      );
+    }
+    s = unwrap(await verifyAndApply(s, makeLock(), rs, h));
+    for (let i = 0; i < 2; i++) {
+      s = unwrap(await verifyAndApply(s, makeCommit(asSeat(i), commitmentsHex[i]!, i.toString(16)), rs, h));
+    }
+    for (let i = 0; i < 2; i++) {
+      s = unwrap(await verifyAndApply(s, makeReveal(asSeat(i), entropies[i]!, (8 + i).toString(16)), rs, h));
+    }
+    expect(s.state_class).toBe('S5_DECK_COMMITTED');
+    expect(s.combined_entropy).not.toBeNull();
+    expect(s.deck_commitment_hash).not.toBeNull();
+
+    // Build the same deck commitment locally to derive an honest reveal proof.
+    const combined = await combineEntropy(entropies.map((e) => fromHex(e)));
+    const dc = await buildDeckCommitment(combined, rs.deck_format, rs.shuffle_algorithm_version);
+    const pos0 = dc.perPosition[0]!;
+
+    const honestReveal = {
+      game_id: asGameId(GAME_ID_HEX),
+      round_number: asRoundNumber(0),
+      referenced_state_hash: asHash256('0'.repeat(64)),
+      action_type: 'CardReveal' as const,
+      action_nonce: asActionNonce('cd'.padStart(64, '0')),
+      acting_player_seat: null,
+      authorising_signature: 'sig',
+      successor_state_commitment: asHash256('0'.repeat(64)),
+      reveal: {
+        position: pos0.position,
+        revealed_card: {
+          rank: '2' as const, // placeholder; the engine reads the .ordinal field
+          suit: 'clubs' as const,
+          ordinal: pos0.ordinal,
+        },
+        card_nonce: asHash256(toHex(pos0.cardNonce)),
+        deck_nonce: asHash256(toHex(pos0.deckNonce)),
+      },
+    };
+    const okResult = await verifyAndApply(s, honestReveal, rs, h);
+    expect(okResult.ok).toBe(true);
+
+    // Forged ordinal — verifyAndApply must reject.
+    const forged = {
+      ...honestReveal,
+      action_nonce: asActionNonce('ce'.padStart(64, '0')),
+      reveal: {
+        ...honestReveal.reveal,
+        revealed_card: { ...honestReveal.reveal.revealed_card, ordinal: (pos0.ordinal + 1) % 52 },
+      },
+    };
+    const badResult = await verifyAndApply(s, forged, rs, h);
+    expect(badResult.ok).toBe(false);
+    if (!badResult.ok) expect(badResult.error.code).toBe('INVALID_REVEAL_PROOF');
+  });
+});

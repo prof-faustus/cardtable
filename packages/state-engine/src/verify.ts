@@ -8,7 +8,15 @@
  * directly when ingesting an action from a peer.
  */
 
-import { commitEntropy, constantTimeEquals, fromHex } from '@cardtable/crypto-cards';
+import {
+  buildDeckCommitment,
+  combineEntropy,
+  commitEntropy,
+  constantTimeEquals,
+  fromHex,
+  toHex,
+  verifyRevealProof,
+} from '@cardtable/crypto-cards';
 import type {
   BlockHeight,
   ProtocolError,
@@ -17,7 +25,7 @@ import type {
   RuleSet,
   SignedAction,
 } from '@cardtable/protocol-types';
-import { err, ok, protocolError } from '@cardtable/protocol-types';
+import { asHash256, err, ok, protocolError } from '@cardtable/protocol-types';
 import { applyAction } from './engine.js';
 
 /**
@@ -80,5 +88,65 @@ export async function verifyAndApply(
       return err(protocolError('INVALID_REVEAL_PROOF', 'entropy does not match prior commitment'));
     }
   }
-  return applyAction(state, action, ruleSet, currentHeight);
+  if (action.action_type === 'CardReveal') {
+    if (state.combined_entropy === null) {
+      return err(protocolError('INVALID_STATE_TRANSITION', 'no combined entropy yet'));
+    }
+    const combined = fromHex(state.combined_entropy);
+    const dc = await buildDeckCommitment(combined, ruleSet.deck_format, ruleSet.shuffle_algorithm_version);
+    const position = action.reveal.position;
+    if (position < 0 || position >= dc.perPosition.length) {
+      return err(protocolError('INVALID_REVEAL_PROOF', `position ${position} out of range`));
+    }
+    const expectedCommit = dc.perPosition[position]!.commitment;
+    const proofOk = await verifyRevealProof(expectedCommit, {
+      position: action.reveal.position,
+      ordinal: action.reveal.revealed_card.ordinal,
+      cardNonce: fromHex(action.reveal.card_nonce),
+      deckNonce: fromHex(action.reveal.deck_nonce),
+    });
+    if (!proofOk) {
+      return err(protocolError('INVALID_REVEAL_PROOF', 'card reveal does not match deck commitment'));
+    }
+  }
+
+  const result = applyAction(state, action, ruleSet, currentHeight);
+  if (!result.ok) return result;
+
+  // Materialise the deck commitment on the S4 -> S5 transition: this
+  // is the moment the verifiable shuffle becomes binding for every
+  // honest engine that sees the transcript.
+  if (
+    state.state_class === 'S4_ENTROPY_REVEAL_WINDOW' &&
+    result.value.state_class === 'S5_DECK_COMMITTED' &&
+    result.value.combined_entropy === null
+  ) {
+    return ok(await materialiseDeckCommitment(result.value, ruleSet));
+  }
+  return result;
 }
+
+async function materialiseDeckCommitment(state: RoundState, ruleSet: RuleSet): Promise<RoundState> {
+  const seatSorted = [...state.players].sort((a, b) => a.seat - b.seat);
+  const entropies: Uint8Array[] = [];
+  for (const p of seatSorted) {
+    if (p.entropy_value === null) {
+      // Should not happen — we only enter S5 once every reveal has
+      // landed. Guard anyway.
+      return state;
+    }
+    entropies.push(fromHex(p.entropy_value));
+  }
+  const combined = await combineEntropy(entropies);
+  const dc = await buildDeckCommitment(
+    combined,
+    ruleSet.deck_format,
+    ruleSet.shuffle_algorithm_version,
+  );
+  return {
+    ...state,
+    combined_entropy: asHash256(toHex(combined)),
+    deck_commitment_hash: asHash256(toHex(dc.deckCommitmentHash)),
+  };
+}
+

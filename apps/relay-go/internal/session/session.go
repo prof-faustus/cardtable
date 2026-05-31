@@ -6,6 +6,7 @@ package session
 
 import (
 	"encoding/hex"
+	"fmt"
 	"sync"
 
 	"github.com/prof-faustus/cardtable/relay-go/pkg/cryptocards"
@@ -49,8 +50,9 @@ func (s *Session) State() types.RoundState {
 // action nonce has been seen before, the call is rejected with
 // STALE_STATE. If a reveal action does not hash back to its prior
 // commitment, the call is rejected with INVALID_REVEAL_PROOF. On
-// success the engine is consulted and the action is appended to the
-// transcript.
+// success the engine is consulted, the deck commitment is
+// materialised at the S4 -> S5 transition, and the action is
+// appended to the transcript.
 func (s *Session) Submit(action types.SignedAction, height types.BlockHeight) (types.RoundState, *types.ProtocolError) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -60,15 +62,58 @@ func (s *Session) Submit(action types.SignedAction, height types.BlockHeight) (t
 	if perr := s.verifyCrypto(action); perr != nil {
 		return s.state, perr
 	}
+	priorClass := s.state.StateClass
 	next, err := engine.ApplyAction(s.state, action, s.ruleSet, height)
 	if err != nil {
 		return s.state, err
+	}
+	if priorClass == types.StateEntropyReveal && next.StateClass == types.StateDeckCommitted && next.CombinedEntropy == "" {
+		patched, perr := s.materialiseDeckCommitment(next)
+		if perr != nil {
+			return s.state, perr
+		}
+		next = patched
 	}
 	s.seenNonces[action.ActionNonce] = struct{}{}
 	s.transcript = append(s.transcript, action)
 	s.heights = append(s.heights, height)
 	s.state = next
 	return next, nil
+}
+
+// materialiseDeckCommitment derives combined_entropy + deck_commitment_hash
+// from the players' revealed entropies and stamps them onto the new
+// state.
+func (s *Session) materialiseDeckCommitment(state types.RoundState) (types.RoundState, *types.ProtocolError) {
+	seated := append([]types.PlayerState{}, state.Players...)
+	// Sort by seat ascending (canonical ordering).
+	for i := 1; i < len(seated); i++ {
+		for j := i; j > 0 && seated[j-1].Seat > seated[j].Seat; j-- {
+			seated[j-1], seated[j] = seated[j], seated[j-1]
+		}
+	}
+	entropies := make([][]byte, 0, len(seated))
+	for _, p := range seated {
+		if p.EntropyValue == "" {
+			return state, types.NewProtocolError(types.ErrInvalidStateTransition, "missing entropy_value at S5")
+		}
+		e, err := hex.DecodeString(string(p.EntropyValue))
+		if err != nil || len(e) != 32 {
+			return state, types.NewProtocolError(types.ErrSerialisation, "entropy_value not 32-byte hex")
+		}
+		entropies = append(entropies, e)
+	}
+	combined, err := cryptocards.CombineEntropy(entropies)
+	if err != nil {
+		return state, types.NewProtocolError(types.ErrInvalidStateTransition, err.Error())
+	}
+	dc, err := cryptocards.BuildDeckCommitment(combined, s.ruleSet.DeckFormat, s.ruleSet.ShuffleAlgorithmVersion)
+	if err != nil {
+		return state, types.NewProtocolError(types.ErrInvalidStateTransition, err.Error())
+	}
+	state.CombinedEntropy = types.Hash256(hex.EncodeToString(combined))
+	state.DeckCommitmentHash = types.Hash256(hex.EncodeToString(dc.DeckCommitmentHash))
+	return state, nil
 }
 
 // verifyCrypto enforces the mental-poker preconditions on commit /
@@ -127,6 +172,43 @@ func (s *Session) verifyCrypto(a types.SignedAction) *types.ProtocolError {
 		}
 		if !ok {
 			return types.NewProtocolError(types.ErrInvalidRevealProof, "entropy does not match prior commitment")
+		}
+
+	case types.ActionCardReveal:
+		if s.state.CombinedEntropy == "" {
+			return types.NewProtocolError(types.ErrInvalidStateTransition, "no combined entropy yet")
+		}
+		combined, err := hex.DecodeString(string(s.state.CombinedEntropy))
+		if err != nil || len(combined) != 32 {
+			return types.NewProtocolError(types.ErrSerialisation, "combined_entropy not 32-byte hex")
+		}
+		dc, err := cryptocards.BuildDeckCommitment(combined, s.ruleSet.DeckFormat, s.ruleSet.ShuffleAlgorithmVersion)
+		if err != nil {
+			return types.NewProtocolError(types.ErrInvalidStateTransition, err.Error())
+		}
+		pos := a.Reveal.Position
+		if pos < 0 || pos >= len(dc.PerPosition) {
+			return types.NewProtocolError(types.ErrInvalidRevealProof, fmt.Sprintf("position %d out of range", pos))
+		}
+		cardNonce, err := hex.DecodeString(string(a.Reveal.CardNonce))
+		if err != nil || len(cardNonce) != 32 {
+			return types.NewProtocolError(types.ErrSerialisation, "card_nonce not 32-byte hex")
+		}
+		deckNonce, err := hex.DecodeString(string(a.Reveal.DeckNonce))
+		if err != nil || len(deckNonce) != 32 {
+			return types.NewProtocolError(types.ErrSerialisation, "deck_nonce not 32-byte hex")
+		}
+		ok, verr := cryptocards.VerifyRevealProof(dc.PerPosition[pos].Commitment, cryptocards.RevealProof{
+			Position:  a.Reveal.Position,
+			Ordinal:   a.Reveal.RevealedCard.Ordinal,
+			CardNonce: cardNonce,
+			DeckNonce: deckNonce,
+		})
+		if verr != nil {
+			return types.NewProtocolError(types.ErrInvalidRevealProof, verr.Error())
+		}
+		if !ok {
+			return types.NewProtocolError(types.ErrInvalidRevealProof, "card reveal does not match deck commitment")
 		}
 	}
 	return nil
