@@ -1,0 +1,31 @@
+# docker-compose.yml — local-development entry point.
+#
+# Bring up the relay (TCP :8080 + WebSocket :8081) and tail its logs:
+#
+#   docker compose up --build relay
+#
+# Drive it from a Node integration test harness:
+#
+#   CARDTABLE_WS_URL=ws://localhost:8081/ws \
+#     pnpm --filter @cardtable/integration-tests test
+#
+# Tear down:
+#
+#   docker compose down
+
+version: '3.9'
+
+services:
+  relay:
+    build:
+      context: .
+      dockerfile: apps/relay-go/Dockerfile
+    image: cardtable-relay:dev
+    container_name: cardtable-relay
+    ports:
+      - '8080:8080'
+      - '8081:8081'
+    # No in-container healthcheck: the distroless runtime has no shell
+    # or wget. CI / local dev should poll http://localhost:8081/healthz
+    # from outside the container.
+    restart: 'no'

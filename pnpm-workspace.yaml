@@ -2,3 +2,4 @@ packages:
   - 'packages/*'
   - 'apps/client-web'
   - 'tools/transcript-verifier'
+  - 'tests/integration'

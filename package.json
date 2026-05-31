@@ -9,7 +9,8 @@
   "workspaces": [
     "packages/*",
     "apps/client-web",
-    "tools/transcript-verifier"
+    "tools/transcript-verifier",
+    "tests/integration"
   ],
   "scripts": {
     "build": "pnpm -r --filter \"@cardtable/*\" build",

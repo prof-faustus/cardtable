@@ -1,0 +1,25 @@
+{
+  "name": "@cardtable/integration-tests",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Black-box integration tests that drive the live Go relay over a real WebSocket and assert the wire protocol round-trips correctly.",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b tsconfig.json"
+  },
+  "dependencies": {
+    "@cardtable/protocol-types": "workspace:*",
+    "@cardtable/wire-ts": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}
