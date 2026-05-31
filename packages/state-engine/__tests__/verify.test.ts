@@ -137,12 +137,12 @@ describe('verifyAndApply — entropy commit/reveal mental-poker gate', () => {
     s = unwrap(await verifyAndApply(s, makeCommit(asSeat(1), commitmentHex, 'c1'), rs, h));
 
     // Forged reveal — wrong entropy.
-    const forged = await verifyAndApply(s, makeReveal(asSeat(0), FORGED_HEX, 'r0f'), rs, h);
+    const forged = await verifyAndApply(s, makeReveal(asSeat(0), FORGED_HEX, 'fe'), rs, h);
     expect(forged.ok).toBe(false);
     if (!forged.ok) expect(forged.error.code).toBe('INVALID_REVEAL_PROOF');
 
     // Honest reveal — same entropy that hashes to the commitment.
-    const honest = await verifyAndApply(s, makeReveal(asSeat(0), ENTROPY_HEX, 'r0h'), rs, h);
+    const honest = await verifyAndApply(s, makeReveal(asSeat(0), ENTROPY_HEX, 'ae'), rs, h);
     expect(honest.ok).toBe(true);
   });
 
@@ -155,7 +155,7 @@ describe('verifyAndApply — entropy commit/reveal mental-poker gate', () => {
     s = unwrap(await verifyAndApply(s, makeLock(), rs, h));
 
     // 32-char (16-byte) commitment — invalid shape.
-    const badCommit = makeCommit(asSeat(0), 'a'.repeat(32), 'c0_bad');
+    const badCommit = makeCommit(asSeat(0), 'a'.repeat(32), 'bad');
     const r = await verifyAndApply(s, badCommit, rs, h);
     expect(r.ok).toBe(false);
   });
