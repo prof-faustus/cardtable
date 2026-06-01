@@ -16,6 +16,7 @@ import (
 	"github.com/prof-faustus/cardtable/relay-go/internal/broadcast"
 	"github.com/prof-faustus/cardtable/relay-go/internal/relay"
 	"github.com/prof-faustus/cardtable/relay-go/internal/session"
+	"github.com/prof-faustus/cardtable/relay-go/internal/spv"
 	"github.com/prof-faustus/cardtable/relay-go/internal/wsadapter"
 	"github.com/prof-faustus/cardtable/relay-go/pkg/types"
 )
@@ -33,7 +34,9 @@ func main() {
 	stake := flag.Uint64("stake", 1000, "session stake amount in sats")
 	minBet := flag.Uint64("min-bet", 1, "minimum bet in sats")
 	maxBet := flag.Uint64("max-bet", 100, "maximum bet in sats")
-	startHeight := flag.Uint("start-height", 100, "initial block height the relay reports to the engine")
+	startHeight := flag.Uint("start-height", 100, "initial block height the relay reports to the engine (also used as fallback when --spv-url is unset)")
+	spvURL := flag.String("spv-url", "", "if set, poll this SPV-service base URL for the chain tip (e.g. http://localhost:8082)")
+	spvPollInterval := flag.Duration("spv-poll-interval", 5*time.Second, "SPV /headers/latest poll cadence when --spv-url is set")
 	readTimeout := flag.Duration("read-timeout", 30*time.Second, "per-frame read deadline")
 	flag.Parse()
 
@@ -63,31 +66,43 @@ func main() {
 	sess := session.New(types.GameId(*gameId), ruleSet, "0000000000000000000000000000000000000000000000000000000000000099", 144)
 	hub := broadcast.New(64)
 
-	// In the reference binary the chain height is a monotonic counter
-	// the operator advances manually (e.g. for timeout testing). A
-	// future SPV-service integration will replace this.
+	// Chain-height source:
+	//   - With --spv-url set, poll the SPV service's /headers/latest.
+	//   - Otherwise, fall back to the static --start-height (useful
+	//     for offline development and the existing CI tests that
+	//     don't run a BSV node).
 	var height atomic.Uint32
 	height.Store(uint32(*startHeight))
+	currentHeight := func() types.BlockHeight {
+		return types.BlockHeight(height.Load())
+	}
+	var spvSource *spv.HTTPHeightSource
+	if *spvURL != "" {
+		spvSource = spv.NewHTTPHeightSource(*spvURL, *spvPollInterval)
+		spvSource.SetInitial(uint32(*startHeight))
+		currentHeight = func() types.BlockHeight { return spvSource.Current() }
+		logger.Info("spv height source configured", "url", *spvURL, "poll_interval", *spvPollInterval)
+	}
 
 	srv := relay.NewServer(relay.Config{
-		Addr:        *addr,
-		ReadTimeout: *readTimeout,
-		CurrentHeight: func() types.BlockHeight {
-			return types.BlockHeight(height.Load())
-		},
-		Logger: logger,
+		Addr:          *addr,
+		ReadTimeout:   *readTimeout,
+		CurrentHeight: currentHeight,
+		Logger:        logger,
 	}, sess, hub)
 
 	wsSrv := wsadapter.NewServer(wsadapter.Config{
-		Addr: *wsAddr,
-		CurrentHeight: func() types.BlockHeight {
-			return types.BlockHeight(height.Load())
-		},
-		Logger: logger,
+		Addr:          *wsAddr,
+		CurrentHeight: currentHeight,
+		Logger:        logger,
 	}, sess, hub)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+
+	if spvSource != nil {
+		spvSource.Start(ctx)
+	}
 
 	logger.Info("starting cardtable relay",
 		"tcp_addr", *addr,
@@ -95,6 +110,7 @@ func main() {
 		"game_id", *gameId,
 		"stake", *stake,
 		"start_height", *startHeight,
+		"spv_url", *spvURL,
 	)
 
 	errs := make(chan error, 2)
