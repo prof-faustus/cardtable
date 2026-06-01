@@ -18,7 +18,7 @@ func foldRuleSet() types.RuleSet {
 
 func makeFoldPlayer(seat int, pubkey string) types.PlayerState {
 	return types.PlayerState{
-		Seat:                seat,
+		Seat:                types.Seat(seat),
 		PlayerId:            types.PlayerId(pubkey[2:]),
 		ValueSigningPubkey:  types.Pubkey33(pubkey),
 		ParticipationStatus: types.StatusActive,
