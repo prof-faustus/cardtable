@@ -40,7 +40,7 @@ behind the code.
 | `apps/client-web/` | 3 | **complete (open-info)** — React/Vite/Zustand + RelayClient with online/offline modes |
 | `apps/relay-go/` | 3 | **complete** — Go state-engine port + TCP relay + WebSocket adapter + `cmd/indexer` audit harness |
 | `apps/indexer-go/` | 3+ | **placeholder** — indexer command currently lives at `apps/relay-go/cmd/indexer` (ADR-002) |
-| `apps/spv-service-go/` | 3+ | empty |
+| `apps/spv-service-go/` | 3+ | **placeholder** — SPV service binary currently lives at `apps/relay-go/cmd/spv` and the internal package at `apps/relay-go/internal/spv` (ADR-002 colocation). Provides `/headers/latest`, `/headers/{height}`, `/merkle-proof?txid=...`; the relay's `--spv-url` flag wires `CurrentHeight` to it. |
 | `tests/integration/` | 3+ | **complete** — `@cardtable/integration-tests` drives the live Go relay over real WebSockets (ping/pong + Join + full mental-poker round) on Ubuntu/macOS/Windows |
 | `tests/browser-smoke/` | 3+ | **complete** — Playwright + headless Chromium against the Vite preview (offline + online flows) |
 | `tests/simulation/` | 5+ | empty |
@@ -79,10 +79,16 @@ Total: **22 + 1 conditional** jobs per push (`publish relay image to GHCR` only 
 
 ## Runnable artifacts
 
-- `apps/relay-go/cmd/relay` — the TCP + WebSocket relay binary
+- `apps/relay-go/cmd/relay` — the TCP + WebSocket relay binary; `--spv-url` for chain-height
 - `apps/relay-go/cmd/indexer` — server-side transcript audit CLI
+- `apps/relay-go/cmd/spv` — SPV header + merkle-proof service (BSV-node JSON-RPC client; HTTP API)
 - `apps/client-web` — React + Vite browser client
 - `tools/transcript-verifier` — `cardtable-transcript-verifier` Node CLI; crypto-gated audit
 - `tools/transcript-recorder` — `cardtable-transcript-recorder` Node CLI; drives a session and writes a JSONL transcript
-- `ghcr.io/<owner>/cardtable-relay:latest` — published multi-arch Docker image (linux/amd64 + linux/arm64)
-- `docker compose up --build relay` — local dev entry point
+- `ghcr.io/<owner>/cardtable-relay:latest` and `:v0.1.0` — published multi-arch Docker image (linux/amd64 + linux/arm64)
+- `docker compose up --build relay` — relay-only local dev
+- `docker compose --profile chain up --build` — full stack: regtest `bsv-node` + `spv` + `relay`
+
+## Releases
+
+- **v0.1.0** (2026-06-01) — first tagged release. GHCR multi-arch image + 9 native binaries (relay/indexer/spv × {linux, macOS, Windows} amd64). See `CHANGELOG.md` and <https://github.com/prof-faustus/cardtable/releases/tag/v0.1.0>.
