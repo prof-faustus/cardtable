@@ -59,10 +59,27 @@ and `__tests__/conformance.test.ts` (`packages/crypto-cards`).
 
 ## CI
 
-GitHub Actions runs three job classes on every push to `main`:
+GitHub Actions runs the following jobs on every push to `main`:
 
-- `typecheck + build + test` × {Ubuntu, macOS, Windows} × {Node 20, 22} — runs every `@cardtable/*` package's `build` and `test` scripts via pnpm.
-- `go vet + test` × {Ubuntu, macOS, Windows} × {Go 1.22, 1.23} — runs `go vet ./...` and `go test ./...` against `apps/relay-go/`.
-- `spec docs + test vectors are valid JSON` — `jq -e` on every `spec/test-vectors/*.json` and a presence check on every required `spec/*.md`.
+| Job class | Matrix | What it proves |
+|---|---|---|
+| `typecheck + build + test` | {Ubuntu, macOS, Windows} × {Node 20, 22} | Every `@cardtable/*` package builds + every unit suite passes |
+| `go vet + test` | {Ubuntu, macOS, Windows} × {Go 1.22, 1.23} | `go vet ./...` + `go test -v ./...` on `apps/relay-go/` |
+| `live relay (native binary)` | {Ubuntu, macOS, Windows} | The Go binary actually binds + a real WS client exercises ping/pong + Join/reject |
+| `live full-round mental poker` | {Ubuntu, macOS, Windows} | Full `Join × 2 → Lock → Commit × 2 → Reveal × 2 → CardReveal × 3 + Bet → Settle` over a real WS, with real commitments / reveal proofs |
+| `docker image build + container smoke test` | Linux (amd64 + arm64 cross-build) | Multi-arch Dockerfile builds; container runs; integration smoke against the container |
+| `browser smoke (chromium)` | Ubuntu | Headless Chromium loads the production Vite bundle and clicks through the offline-mode table flow |
+| `publish relay image to GHCR` | Ubuntu, push events on `main` only | Multi-arch image published to `ghcr.io/<owner>/cardtable-relay` tagged `:latest` and `:<sha>` |
+| `spec docs + test vectors are valid JSON` | Ubuntu | `jq -e` on every `spec/test-vectors/*.json`, presence check on every `spec/*.md` |
 
-13 jobs total per push; the build is green at `bc2e877`.
+Total: **23 jobs** per push; build is green at `5f5f4b3`.
+
+## Runnable artifacts
+
+- `apps/relay-go/cmd/relay` — the TCP + WebSocket relay binary
+- `apps/relay-go/cmd/indexer` — server-side transcript audit CLI
+- `apps/client-web` — React + Vite browser client
+- `tools/transcript-verifier` — `cardtable-transcript-verifier` Node CLI; crypto-gated audit
+- `tools/transcript-recorder` — `cardtable-transcript-recorder` Node CLI; drives a session and writes a JSONL transcript
+- `ghcr.io/<owner>/cardtable-relay:latest` — published multi-arch Docker image (linux/amd64 + linux/arm64)
+- `docker compose up --build relay` — local dev entry point
