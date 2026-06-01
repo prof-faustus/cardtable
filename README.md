@@ -82,8 +82,65 @@ corresponding phase fills them.
 - **No silent assumptions.** Hidden assumptions are defects; declare them on
   the face of the document.
 
+## Quickstart
+
+```bash
+# 1. Install
+pnpm install
+
+# 2. Run every TS + Go suite locally (offline)
+pnpm ci                                       # workspace build + test
+(cd apps/relay-go && go test -v ./...)        # Go suite
+
+# 3. Run the relay locally
+(cd apps/relay-go && go build -o ../../bin/relay ./cmd/relay)
+./bin/relay --addr :8080 --ws-addr :8081 \
+  --game 00000000000000000000000000000000000000000000000000000000000000aa \
+  --start-height 100
+
+# 4. Drive a full mental-poker round against the running relay
+CARDTABLE_RUN_LIVE=1 \
+CARDTABLE_RUN_FULL_ROUND=1 \
+CARDTABLE_WS_URL=ws://localhost:8081/ws \
+CARDTABLE_GAME_ID=00000000000000000000000000000000000000000000000000000000000000aa \
+  pnpm --filter @cardtable/integration-tests test
+
+# 5. Or use Docker
+docker compose up --build relay               # local build
+docker run -p 8080:8080 -p 8081:8081 \
+  ghcr.io/prof-faustus/cardtable-relay:latest # published multi-arch image
+```
+
+Browser client:
+
+```bash
+(cd apps/client-web && pnpm vite build && pnpm vite preview --port 4173)
+# then open http://localhost:4173 and click "Connect to relay"
+```
+
+Record a transcript and verify it offline:
+
+```bash
+node ./tools/transcript-recorder/dist/index.js \
+  --ws ws://localhost:8081/ws \
+  --game-id 00000000000000000000000000000000000000000000000000000000000000aa \
+  --out ./session.jsonl
+
+node ./tools/transcript-verifier/dist/index.js \
+  --transcript ./session.jsonl \
+  --game-id 00000000000000000000000000000000000000000000000000000000000000aa
+
+# OR the Go-side audit harness:
+(cd apps/relay-go && go build -o ../../bin/indexer ./cmd/indexer)
+./bin/indexer --transcript ./session.jsonl \
+  --game-id 00000000000000000000000000000000000000000000000000000000000000aa
+```
+
 ## How to contribute
 
-Until Phase 1 lands, there is no buildable code in this repository. Read
-`PROJECT_SPEC.md` and the Formal Architecture document end-to-end before
-proposing any change.
+Read `PROJECT_SPEC.md` and the per-aspect spec docs under `spec/`
+end-to-end. Then check `STATUS.md` for the current phase + the
+substantive gaps remaining. Tests live next to their code:
+`packages/*/__tests__/`, `apps/relay-go/**/_test.go`, plus the
+cross-system suites under `tests/integration/` and
+`tests/browser-smoke/`.
