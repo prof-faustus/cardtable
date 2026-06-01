@@ -519,12 +519,15 @@ func ComputeSettlement(state types.RoundState, ruleSet types.RuleSet) (types.Set
 // ---------------------------------------------------------------------------
 
 func cloneState(s types.RoundState) types.RoundState {
+	// Use empty-slice literals (not nil) so encoding/json emits `[]`
+	// rather than `null` for empty collections. The browser client
+	// reads .length on these fields and would crash otherwise.
 	out := s
-	out.Players = append([]types.PlayerState(nil), s.Players...)
-	out.VisibleCards = append([]types.RevealedCard(nil), s.VisibleCards...)
-	out.HiddenCommitmentRefs = append([]types.Hash256(nil), s.HiddenCommitmentRefs...)
-	out.AllowedActions = append([]types.ActionType(nil), s.AllowedActions...)
-	out.SuccessorTemplateHashes = append([]types.Hash256(nil), s.SuccessorTemplateHashes...)
+	out.Players = append([]types.PlayerState{}, s.Players...)
+	out.VisibleCards = append([]types.RevealedCard{}, s.VisibleCards...)
+	out.HiddenCommitmentRefs = append([]types.Hash256{}, s.HiddenCommitmentRefs...)
+	out.AllowedActions = append([]types.ActionType{}, s.AllowedActions...)
+	out.SuccessorTemplateHashes = append([]types.Hash256{}, s.SuccessorTemplateHashes...)
 	return out
 }
 
@@ -532,8 +535,12 @@ func cloneSeats(in []types.PlayerState) []types.PlayerState {
 	out := make([]types.PlayerState, len(in))
 	for i, p := range in {
 		copy := p
-		copy.ConcealedCardRefs = append([]types.Outpoint(nil), p.ConcealedCardRefs...)
-		if p.DefaultPreferences != nil {
+		// Empty-slice literal (not nil) so the JSON serialiser
+		// emits `[]` for the browser client.
+		copy.ConcealedCardRefs = append([]types.Outpoint{}, p.ConcealedCardRefs...)
+		if p.DefaultPreferences == nil {
+			copy.DefaultPreferences = map[string]string{}
+		} else {
 			m := make(map[string]string, len(p.DefaultPreferences))
 			for k, v := range p.DefaultPreferences {
 				m[k] = v
