@@ -144,21 +144,21 @@ func TestEncodeBytesPinnedVector(t *testing.T) {
 		t.Fatalf("encode: %v", err)
 	}
 	gotHex := hex.EncodeToString(b)
-	// Expected layout:
-	//   version (4)          = 01000000
-	//   in_count (1)         = 01
-	//   prev_txid (32)       = aa * 32
-	//   prev_vout (4)        = 00000000
-	//   script_len (1)       = 00
-	//   sequence (4)         = ffffffff
-	//   out_count (1)        = 01
-	//   value (8)            = 8813000000000000 (5000 LE)
-	//   script_len (1)       = 19
-	//   locking_script (25)  = 76a914 00..13 88ac
-	//   lockTime (4)         = 00000000
-	// Total = 84 bytes.
-	if len(b) != 84 {
-		t.Errorf("encoded length: want 84, got %d (hex=%s)", len(b), gotHex)
+	// Expected layout (totals to 85 bytes):
+	//   version          (4)  = 01000000
+	//   in_count         (1)  = 01
+	//   prev_txid       (32)  = aa * 32
+	//   prev_vout        (4)  = 00000000
+	//   unlock_len       (1)  = 00
+	//   sequence         (4)  = ffffffff
+	//   out_count        (1)  = 01
+	//   value            (8)  = 8813000000000000 (5000 LE)
+	//   lock_len         (1)  = 19
+	//   locking_script  (25)  = 76a914 00..13 88ac
+	//   lockTime         (4)  = 00000000
+	const wantLen = 4 + 1 + 32 + 4 + 1 + 4 + 1 + 8 + 1 + 25 + 4
+	if len(b) != wantLen {
+		t.Errorf("encoded length: want %d, got %d (hex=%s)", wantLen, len(b), gotHex)
 	}
 	// Spot-check magic positions.
 	if gotHex[:8] != "01000000" {
