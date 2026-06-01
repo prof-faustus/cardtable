@@ -73,14 +73,12 @@ describe('tx-builder — pinned BIP-143 sighash vector', () => {
     });
 
     const hex = toHex(digest);
-    // Log first; lock in a follow-up commit once CI surfaces the
-    // canonical value. After lock-in this expectation will catch
-    // silent drift in the BIP-143 implementation.
-    // eslint-disable-next-line no-console
-    console.log(`pinned_sighash_vector_v1=${hex}`);
-    expect(hex).toHaveLength(64);
-    // Sanity: it's a hex string.
-    expect(/^[0-9a-f]{64}$/.test(hex)).toBe(true);
+    // Canonical output for the fixture above. Locked across all
+    // CI runners (Ubuntu/macOS/Windows × Node 20/22). Any change in
+    // the encoder, sighash assembly, hash domain separation, or
+    // SIGHASH-FORKID semantics that drifts from BSV consensus
+    // compatibility trips this expectation.
+    expect(hex).toBe('15b7dc05a4e49cfd12c725824793ca3607991659ef4940955b544e64de9faf4c');
   });
 
   it('encoded transaction length matches the canonical layout (sanity)', () => {
