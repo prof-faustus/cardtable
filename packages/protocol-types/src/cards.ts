@@ -74,14 +74,33 @@ export interface CardCommitment {
 
 /**
  * Card lifecycle states for the extended one-UTXO-per-card model.
- * In-Between v1 uses only `UNDEALT` and `REVEALED`.
+ *
+ * The named values below are the canonical set every reference
+ * implementation supports. Game variants beyond In-Between MAY
+ * extend the lifecycle with their own state names (e.g. poker
+ * variants might add `MUCKED`, `BURNT`, `BOARD`) — the union
+ * includes `(string & {})` to permit arbitrary strings at runtime
+ * while keeping autocomplete on the canonical members.
+ *
+ * Engine handlers (e.g. `applyFold`) only act on the canonical
+ * states; variant-specific states pass through unchanged.
  */
 export type CardLifecycleState =
   | 'UNDEALT'
   | 'ASSIGNED_CONCEALED'
   | 'REVEALED'
   | 'SURRENDERED'
-  | 'RETIRED';
+  | 'RETIRED'
+  | (string & {});
+
+/** The canonical lifecycle set; useful for runtime validation. */
+export const CANONICAL_LIFECYCLE_STATES = [
+  'UNDEALT',
+  'ASSIGNED_CONCEALED',
+  'REVEALED',
+  'SURRENDERED',
+  'RETIRED',
+] as const;
 
 /**
  * Concealed card object (extended model only). Carries the encrypted

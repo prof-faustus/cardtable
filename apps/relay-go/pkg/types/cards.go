@@ -30,6 +30,12 @@ type RevealedCard struct {
 
 // CardLifecycleState enumerates the extended one-UTXO-per-card states
 // per spec/card-protocol.md §6.
+//
+// The named constants below are the canonical set every reference
+// implementation supports. Game variants beyond In-Between MAY use
+// additional string values (e.g. poker might emit "MUCKED" or
+// "BURNT") — the engine only acts on the canonical states; unknown
+// values pass through.
 type CardLifecycleState string
 
 const (
@@ -39,6 +45,16 @@ const (
 	CardSurrendered       CardLifecycleState = "SURRENDERED"
 	CardRetired           CardLifecycleState = "RETIRED"
 )
+
+// CanonicalLifecycleStates is the named set every reference engine
+// honours. Variant-specific states are permitted but not validated.
+var CanonicalLifecycleStates = []CardLifecycleState{
+	CardUndealt,
+	CardAssignedConcealed,
+	CardRevealed,
+	CardSurrendered,
+	CardRetired,
+}
 
 // ConcealedCard is one position's extended-model lifecycle row. The
 // relay engine reads holder_pubkey + lifecycle_state for the Fold

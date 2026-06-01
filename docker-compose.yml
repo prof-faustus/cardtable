@@ -1,10 +1,15 @@
 # docker-compose.yml — local-development entry point.
 #
-# Bring up the relay (TCP :8080 + WebSocket :8081) and tail its logs:
+# Default profile (no flag): brings up the relay only.
 #
 #   docker compose up --build relay
 #
-# Drive it from a Node integration test harness:
+# Bring up the SPV service and a regtest BSV node (heavyweight —
+# only when you're testing on-chain features):
+#
+#   docker compose --profile chain up --build
+#
+# Drive the relay from a Node integration test harness:
 #
 #   CARDTABLE_WS_URL=ws://localhost:8081/ws \
 #     pnpm --filter @cardtable/integration-tests test
@@ -29,3 +34,57 @@ services:
     # or wget. CI / local dev should poll http://localhost:8081/healthz
     # from outside the container.
     restart: 'no'
+
+  # ---------------------------------------------------------------------
+  # The 'chain' profile spins up a BSV node + the SPV service on top.
+  # Excluded from the default `docker compose up` because the BSV node
+  # pulls a heavyweight image and takes a while to come online; only
+  # opt in when you're exercising on-chain features.
+  #
+  # Bring up with:  docker compose --profile chain up --build
+  # ---------------------------------------------------------------------
+
+  bsv-node:
+    profiles: ['chain']
+    image: bitcoinsv/bitcoin-sv:1.1.0
+    container_name: cardtable-bsv-node
+    command:
+      - '-regtest=1'
+      - '-rpcuser=cardtable'
+      - '-rpcpassword=cardtable-dev-rpc-password'
+      - '-rpcbind=0.0.0.0'
+      - '-rpcallowip=0.0.0.0/0'
+      - '-rpcport=18332'
+      - '-server=1'
+      - '-listen=0'
+      - '-printtoconsole=1'
+      - '-disablewallet=0'
+      - '-fallbackfee=0.00001'
+    ports:
+      - '18332:18332'
+    volumes:
+      - bsv-data:/data
+    restart: 'no'
+
+  spv:
+    profiles: ['chain']
+    build:
+      context: .
+      dockerfile: apps/relay-go/Dockerfile
+    image: cardtable-relay:dev
+    container_name: cardtable-spv
+    entrypoint: ['/usr/local/bin/spv']
+    command:
+      - '--addr=:8082'
+      - '--rpc-url=http://bsv-node:18332/'
+      - '--rpc-user=cardtable'
+      - '--rpc-pass=cardtable-dev-rpc-password'
+      - '--poll-interval=2s'
+    depends_on:
+      - bsv-node
+    ports:
+      - '8082:8082'
+    restart: 'no'
+
+volumes:
+  bsv-data: {}

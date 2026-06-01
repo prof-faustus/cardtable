@@ -71,6 +71,7 @@ export type {
 export {
   SUITS_IN_ORDER,
   RANKS_IN_ORDER,
+  CANONICAL_LIFECYCLE_STATES,
   cardOrdinal,
   cardFromOrdinal,
 } from './cards.js';

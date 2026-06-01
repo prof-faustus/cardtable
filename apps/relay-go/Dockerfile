@@ -21,6 +21,7 @@ COPY apps/relay-go/ ./
 ENV CGO_ENABLED=0
 RUN go build -trimpath -buildvcs=false -ldflags="-s -w" -o /out/relay ./cmd/relay
 RUN go build -trimpath -buildvcs=false -ldflags="-s -w" -o /out/indexer ./cmd/indexer
+RUN go build -trimpath -buildvcs=false -ldflags="-s -w" -o /out/spv ./cmd/spv
 
 # ---- runtime stage ---------------------------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot
@@ -35,6 +36,7 @@ USER nonroot
 
 COPY --from=builder /out/relay   /usr/local/bin/relay
 COPY --from=builder /out/indexer /usr/local/bin/indexer
+COPY --from=builder /out/spv     /usr/local/bin/spv
 
 EXPOSE 8080 8081
 

@@ -1,6 +1,11 @@
 {
   "name": "cardtable",
   "version": "0.1.0",
+  "homepage": "https://github.com/prof-faustus/cardtable",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prof-faustus/cardtable.git"
+  },
   "private": true,
   "type": "module",
   "description": "Dealerless distributed card-game protocol on BSV — monorepo root.",
