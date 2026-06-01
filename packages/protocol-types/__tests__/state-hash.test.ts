@@ -31,6 +31,7 @@ function makeState(overrides: Partial<RoundState> = {}): RoundState {
     successor_template_hashes: [],
     combined_entropy: null,
     deck_commitment_hash: null,
+    concealed_deck: null,
     prior_state_hash: null,
     state_hash: asHash256('0'.repeat(64)),
     ...overrides,

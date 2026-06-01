@@ -15,7 +15,7 @@ import type {
   Seat,
 } from './primitives.js';
 import type { ActionType } from './actions.js';
-import type { RevealedCard } from './cards.js';
+import type { ConcealedCard, RevealedCard } from './cards.js';
 import type { PlayerState } from './player.js';
 
 /** State classes per `spec/state-machine.md` §3. */
@@ -84,6 +84,16 @@ export interface RoundState {
    * commitment.
    */
   readonly deck_commitment_hash: Hash256 | null;
+  /**
+   * Extended one-UTXO-per-card lifecycle (`spec/card-protocol.md` §6).
+   * Null on the MVP commitment-based-deck path (In-Between v1).
+   * Non-null in poker variants with concealed hands: each entry
+   * tracks one deck position's encrypted-card-UTXO state. The
+   * engine reads this for the `Fold` handler (which transitions
+   * the actor's `ASSIGNED_CONCEALED` cards to `SURRENDERED` without
+   * revealing).
+   */
+  readonly concealed_deck: readonly ConcealedCard[] | null;
   /** Hash of the parent state in the transition tree; null at the root. */
   readonly prior_state_hash: Hash256 | null;
   /**

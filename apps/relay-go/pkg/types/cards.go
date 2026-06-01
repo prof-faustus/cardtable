@@ -28,6 +28,30 @@ type RevealedCard struct {
 	Ordinal int  `json:"ordinal"`
 }
 
+// CardLifecycleState enumerates the extended one-UTXO-per-card states
+// per spec/card-protocol.md §6.
+type CardLifecycleState string
+
+const (
+	CardUndealt           CardLifecycleState = "UNDEALT"
+	CardAssignedConcealed CardLifecycleState = "ASSIGNED_CONCEALED"
+	CardRevealed          CardLifecycleState = "REVEALED"
+	CardSurrendered       CardLifecycleState = "SURRENDERED"
+	CardRetired           CardLifecycleState = "RETIRED"
+)
+
+// ConcealedCard is one position's extended-model lifecycle row. The
+// relay engine reads holder_pubkey + lifecycle_state for the Fold
+// handler; the ciphertext / commitment / custody_outpoint fields
+// are opaque blobs the orchestrator owns.
+type ConcealedCard struct {
+	CardCommitment  CardCommitment     `json:"card_commitment"`
+	Ciphertext      string             `json:"ciphertext"`
+	CustodyOutpoint Outpoint           `json:"custody_outpoint"`
+	HolderPubkey    Pubkey33           `json:"holder_pubkey"`
+	LifecycleState  CardLifecycleState `json:"lifecycle_state"`
+}
+
 // CardCommitment is the per-position deck commitment used by both the
 // MVP commitment-based deck and the extended one-UTXO-per-card model.
 type CardCommitment struct {

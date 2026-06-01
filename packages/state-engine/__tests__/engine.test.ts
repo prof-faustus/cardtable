@@ -300,6 +300,7 @@ describe('timeout-refund vector', () => {
       successor_template_hashes: [],
       combined_entropy: null,
       deck_commitment_hash: null,
+      concealed_deck: null,
       prior_state_hash: null,
       state_hash: STATE_HASH,
     };
@@ -329,6 +330,7 @@ describe('timeout-refund vector', () => {
       successor_template_hashes: [],
       combined_entropy: null,
       deck_commitment_hash: null,
+      concealed_deck: null,
       prior_state_hash: null,
       state_hash: STATE_HASH,
     };
@@ -425,6 +427,7 @@ describe('eligibility', () => {
       successor_template_hashes: [],
       combined_entropy: null,
       deck_commitment_hash: null,
+      concealed_deck: null,
       prior_state_hash: null,
       state_hash: STATE_HASH,
     };
@@ -451,6 +454,7 @@ describe('eligibility', () => {
       successor_template_hashes: [],
       combined_entropy: null,
       deck_commitment_hash: null,
+      concealed_deck: null,
       prior_state_hash: null,
       state_hash: STATE_HASH,
     };

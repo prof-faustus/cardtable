@@ -12,8 +12,10 @@ import type {
   BetAction,
   BlockHeight,
   CardRevealAction,
+  ConcealedCard,
   EntropyCommitAction,
   EntropyRevealAction,
+  FoldAction,
   GameId,
   Hash256,
   JoinAction,
@@ -83,6 +85,7 @@ export function initialState(
     successor_template_hashes: [],
     combined_entropy: null,
     deck_commitment_hash: null,
+    concealed_deck: null,
     prior_state_hash: null,
     state_hash: ZERO_HASH, // computed by callers; not used internally
   };
@@ -106,8 +109,8 @@ export function getLegalActions(state_class: StateClass): readonly ActionType[] 
     case 'S4_ENTROPY_REVEAL_WINDOW': return ['EntropyReveal'];
     case 'S5_DECK_COMMITTED': return ['CardReveal'];
     case 'S6_CARD_REVEAL_FIRST': return ['CardReveal'];
-    case 'S7_CARD_REVEAL_SECOND': return ['BetAction', 'Pass', 'Timeout'];
-    case 'S8_BET_DECISION': return ['BetAction', 'Pass', 'Timeout'];
+    case 'S7_CARD_REVEAL_SECOND': return ['BetAction', 'Pass', 'Timeout', 'Fold'];
+    case 'S8_BET_DECISION': return ['BetAction', 'Pass', 'Timeout', 'Fold'];
     case 'S9_CARD_REVEAL_THIRD': return ['CardReveal'];
     case 'S10_SETTLED_ROUND': return ['Settle'];
     case 'S11_ROTATE_TURN': return ['RotateTurn'];
@@ -167,7 +170,7 @@ export function applyAction(
     case 'CardReveal': return applyCardReveal(state, action, ruleSet);
     case 'BetAction': return applyBet(state, action, ruleSet);
     case 'Pass': return applyPass(state, action, ruleSet);
-    case 'Fold': return err(protocolError('INVALID_ACTION_FOR_STATE', 'Fold reserved for Phase 4+'));
+    case 'Fold': return applyFold(state, action, ruleSet);
     case 'Settle': return applySettle(state, action, ruleSet);
     case 'RotateTurn': return applyRotateTurn(state, action, ruleSet);
     case 'TableClose': return applyTableClose(state, action, ruleSet);
@@ -416,6 +419,73 @@ function applyPass(
   }
   return ok({
     ...state,
+    state_class: 'S11_ROTATE_TURN',
+    allowed_actions: getLegalActions('S11_ROTATE_TURN'),
+    prior_state_hash: state.state_hash,
+  });
+}
+
+/**
+ * Fold transitions every card the acting player currently holds in
+ * `ASSIGNED_CONCEALED` state to `SURRENDERED` without revealing the
+ * face, then marks the player as `folded`. Per
+ * `spec/card-protocol.md` §7 a fold MUST NOT leak card face data;
+ * the engine enforces that by leaving `concealed_deck` entries'
+ * commitments and ciphertexts untouched and updating only the
+ * `lifecycle_state`.
+ *
+ * Pre-conditions:
+ *   - State carries a concealed deck (the MVP open-information
+ *     path does NOT use Fold — In-Between v1 has no concealed
+ *     hand).
+ *   - The actor has at least one card in `ASSIGNED_CONCEALED`.
+ *
+ * Either failure returns INVALID_ACTION_FOR_STATE so the actor can
+ * fall back to Pass on the MVP path.
+ */
+function applyFold(
+  state: RoundState,
+  action: FoldAction,
+  _ruleSet: RuleSet,
+): Result<RoundState, ProtocolError> {
+  if (state.state_class !== 'S8_BET_DECISION' && state.state_class !== 'S7_CARD_REVEAL_SECOND') {
+    return err(protocolError('INVALID_ACTION_FOR_STATE', `Fold outside S7/S8 (got ${state.state_class})`));
+  }
+  if (action.acting_player_seat === null) {
+    return err(protocolError('SEAT_OUT_OF_RANGE', 'Fold requires acting_player_seat'));
+  }
+  if (state.concealed_deck === null) {
+    return err(protocolError('INVALID_ACTION_FOR_STATE', 'Fold requires concealed_deck (extended model)'));
+  }
+  const seat = action.acting_player_seat;
+  const seatIdx = state.players.findIndex((p) => p.seat === seat);
+  if (seatIdx < 0) {
+    return err(protocolError('PLAYER_NOT_SEATED', `seat ${seat}`));
+  }
+  const player = state.players[seatIdx]!;
+  const holderPubkey = player.value_signing_pubkey;
+  const surrendered: ConcealedCard[] = [];
+  let touched = 0;
+  for (const card of state.concealed_deck) {
+    if (card.holder_pubkey === holderPubkey && card.lifecycle_state === 'ASSIGNED_CONCEALED') {
+      surrendered.push({ ...card, lifecycle_state: 'SURRENDERED' });
+      touched += 1;
+    } else {
+      surrendered.push(card);
+    }
+  }
+  if (touched === 0) {
+    return err(protocolError('INVALID_ACTION_FOR_STATE', 'Fold: player holds no ASSIGNED_CONCEALED cards'));
+  }
+  const players = [
+    ...state.players.slice(0, seatIdx),
+    { ...player, participation_status: 'folded' as const },
+    ...state.players.slice(seatIdx + 1),
+  ];
+  return ok({
+    ...state,
+    players,
+    concealed_deck: surrendered,
     state_class: 'S11_ROTATE_TURN',
     allowed_actions: getLegalActions('S11_ROTATE_TURN'),
     prior_state_hash: state.state_hash,

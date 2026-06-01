@@ -50,9 +50,9 @@ func GetLegalActions(sc types.StateClass) []types.ActionType {
 	case types.StateCardRevealFirst:
 		return []types.ActionType{types.ActionCardReveal}
 	case types.StateCardRevealSecond:
-		return []types.ActionType{types.ActionBet, types.ActionPass, types.ActionTimeout}
+		return []types.ActionType{types.ActionBet, types.ActionPass, types.ActionTimeout, types.ActionFold}
 	case types.StateBetDecision:
-		return []types.ActionType{types.ActionBet, types.ActionPass, types.ActionTimeout}
+		return []types.ActionType{types.ActionBet, types.ActionPass, types.ActionTimeout, types.ActionFold}
 	case types.StateCardRevealThird:
 		return []types.ActionType{types.ActionCardReveal}
 	case types.StateSettledRound:
@@ -99,7 +99,7 @@ func ApplyAction(state types.RoundState, action types.SignedAction, ruleSet type
 	case types.ActionPass:
 		return applyPass(state)
 	case types.ActionFold:
-		return state, types.NewProtocolError(types.ErrInvalidActionForState, "Fold reserved for Phase 4+")
+		return applyFold(state, action)
 	case types.ActionSettle:
 		return applySettle(state, ruleSet)
 	case types.ActionRotateTurn:
@@ -331,6 +331,64 @@ func applyPass(state types.RoundState) (types.RoundState, *types.ProtocolError) 
 	return next, nil
 }
 
+// applyFold transitions every card the acting player currently holds
+// in ASSIGNED_CONCEALED state to SURRENDERED without revealing the
+// face. Per spec/card-protocol.md §7 a fold MUST NOT leak card-face
+// data; the engine enforces that by leaving every card's commitment,
+// ciphertext, and custody outpoint untouched and updating only the
+// lifecycle_state.
+//
+// Fold is only legal in the extended one-UTXO-per-card model, where
+// state.ConcealedDeck is non-empty. In-Between v1 (the MVP open-
+// information path) leaves the field empty and Pass is the
+// equivalent action.
+func applyFold(state types.RoundState, action types.SignedAction) (types.RoundState, *types.ProtocolError) {
+	if state.StateClass != types.StateBetDecision && state.StateClass != types.StateCardRevealSecond {
+		return state, types.NewProtocolError(types.ErrInvalidActionForState,
+			fmt.Sprintf("Fold outside S7/S8 (got %s)", state.StateClass))
+	}
+	if action.ActingPlayerSeat == nil {
+		return state, types.NewProtocolError(types.ErrSeatOutOfRange, "Fold requires acting_player_seat")
+	}
+	if len(state.ConcealedDeck) == 0 {
+		return state, types.NewProtocolError(types.ErrInvalidActionForState,
+			"Fold requires concealed_deck (extended model)")
+	}
+	seat := *action.ActingPlayerSeat
+	idx := findSeat(state.Players, seat)
+	if idx < 0 {
+		return state, types.NewProtocolError(types.ErrPlayerNotSeated, fmt.Sprintf("seat %d", seat))
+	}
+	player := state.Players[idx]
+	holder := player.ValueSigningPubkey
+
+	updated := make([]types.ConcealedCard, len(state.ConcealedDeck))
+	touched := 0
+	for i, card := range state.ConcealedDeck {
+		if card.HolderPubkey == holder && card.LifecycleState == types.CardAssignedConcealed {
+			c := card
+			c.LifecycleState = types.CardSurrendered
+			updated[i] = c
+			touched++
+		} else {
+			updated[i] = card
+		}
+	}
+	if touched == 0 {
+		return state, types.NewProtocolError(types.ErrInvalidActionForState,
+			"Fold: player holds no ASSIGNED_CONCEALED cards")
+	}
+	next := cloneState(state)
+	next.Players = cloneSeats(state.Players)
+	next.Players[idx].ParticipationStatus = types.StatusFolded
+	next.ConcealedDeck = updated
+	next.StateClass = types.StateRotateTurn
+	next.AllowedActions = GetLegalActions(types.StateRotateTurn)
+	hash := state.StateHash
+	next.PriorStateHash = &hash
+	return next, nil
+}
+
 func applySettle(state types.RoundState, ruleSet types.RuleSet) (types.RoundState, *types.ProtocolError) {
 	if state.StateClass != types.StateSettledRound {
 		return state, types.NewProtocolError(types.ErrInvalidActionForState, "Settle outside S10")
@@ -528,6 +586,9 @@ func cloneState(s types.RoundState) types.RoundState {
 	out.HiddenCommitmentRefs = append([]types.Hash256{}, s.HiddenCommitmentRefs...)
 	out.AllowedActions = append([]types.ActionType{}, s.AllowedActions...)
 	out.SuccessorTemplateHashes = append([]types.Hash256{}, s.SuccessorTemplateHashes...)
+	if s.ConcealedDeck != nil {
+		out.ConcealedDeck = append([]types.ConcealedCard{}, s.ConcealedDeck...)
+	}
 	return out
 }
 

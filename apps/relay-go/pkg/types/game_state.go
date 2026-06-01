@@ -54,6 +54,7 @@ type RoundState struct {
 	SuccessorTemplateHashes     []Hash256      `json:"successor_template_hashes"`
 	CombinedEntropy             Hash256        `json:"combined_entropy,omitempty"`
 	DeckCommitmentHash          Hash256        `json:"deck_commitment_hash,omitempty"`
+	ConcealedDeck               []ConcealedCard `json:"concealed_deck,omitempty"`
 	PriorStateHash              *Hash256       `json:"prior_state_hash"`
 	StateHash                   Hash256        `json:"state_hash"`
 }
