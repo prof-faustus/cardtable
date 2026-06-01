@@ -445,11 +445,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: docker compose pull
-        run: docker compose --profile chain pull
+      # cardtable-relay:dev is a local build, not a registry
+      # image, so a bare `docker compose pull` fails. Build it
+      # first; then `up` pulls bsv-node and starts everything.
+      - name: docker compose build
+        run: docker compose --profile chain build
 
       - name: docker compose up -d
-        run: docker compose --profile chain up -d --build
+        run: docker compose --profile chain up -d
 
       - name: wait for bsv-node JSON-RPC
         run: |

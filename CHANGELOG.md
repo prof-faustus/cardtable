@@ -6,6 +6,49 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-06-01
+
+### Added
+
+- **`apps/relay-go/pkg/txbuilder`** (Go) — port of `@cardtable/tx-builder`:
+  `EncodeBsvTransaction`, `DecodeBsvTransaction`, BIP-143
+  `ComputeSighash`, `ComputeTxId`, plus ECDSA signing via
+  `github.com/decred/dcrd/dcrec/secp256k1/v4`. Cross-language
+  conformance pins the encoded-tx layout and the BIP-143 sighash
+  hex (`15b7dc05...`) across both implementations.
+- **Relay `--spv-url`** flag: when set, `CurrentHeight` comes from
+  polling the SPV service's `/headers/latest`. Falls back to
+  `--start-height` when the URL is unreachable.
+- **`internal/spv.HTTPHeightSource`**: thread-safe polling cache
+  with `SetInitial`, `Current`, `Probe`, `Start`.
+- **Production `RPCClient` test coverage**: mock HTTP server
+  verifies `getblockcount`, `getblockhash`, `getblockheader`,
+  `getmerkleproof` paths plus rpc-error propagation.
+- **`tools/load-test`** — `cardtable-load-test` Node CLI: opens
+  N concurrent WebSocket connections, drives one Join per
+  session, reports connect / ack latency percentiles + throughput
+  + error breakdown.
+- **CI `chain-integration` job** (`continue-on-error: true`):
+  brings up the full `docker compose --profile chain` stack
+  (`bsv-node` + `spv` + `relay`) and smoke-tests the BSV
+  JSON-RPC path. Allowed to fail to insulate PRs from
+  third-party image-registry hiccups.
+
+### Changed
+
+- `CardLifecycleState` (TS + Go) widened to permit variant-specific
+  states beyond the canonical five.
+- `cloneState` / `cloneSeats` (Go) use empty-slice literals so
+  JSON marshalling emits `[]` not `null` — the browser client
+  used to crash reading `.length` on the returned state.
+
+### CI
+
+- `go mod tidy` runs before every `go vet` / `go build` /
+  `go test` invocation so the runner populates `go.sum` from
+  `go.mod`'s `require` directives without needing a committed
+  `go.sum`.
+
 ## [0.1.0] — 2026-06-01
 
 First tagged release. The codebase delivers a self-verifying,
@@ -91,5 +134,6 @@ production hardening (Phase 6 adversarial scenarios against a real
 BSV testnet, key rotation flows, formal proof obligations from
 `spec/`) is out of scope for v0.1.
 
-[Unreleased]: https://github.com/prof-faustus/cardtable/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/prof-faustus/cardtable/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/prof-faustus/cardtable/releases/tag/v0.1.1
 [0.1.0]: https://github.com/prof-faustus/cardtable/releases/tag/v0.1.0
