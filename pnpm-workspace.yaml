@@ -3,5 +3,6 @@ packages:
   - 'apps/client-web'
   - 'tools/transcript-verifier'
   - 'tools/transcript-recorder'
+  - 'tools/load-test'
   - 'tests/integration'
   - 'tests/browser-smoke'

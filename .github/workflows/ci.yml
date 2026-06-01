@@ -433,6 +433,60 @@ jobs:
         run: |
           if [ -f relay.pid ]; then kill "$(cat relay.pid)" 2>/dev/null || true; fi
 
+  chain-integration:
+    name: docker compose --profile chain (bsv-node + spv + relay)
+    runs-on: ubuntu-latest
+    # Allowed to fail without blocking: the bitcoinsv/bitcoin-sv
+    # image is third-party and tag stability is outside our
+    # control. The job stays so a green run proves the full stack
+    # comes up; a red run flags the registry / image issue
+    # immediately without gating PRs.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: docker compose pull
+        run: docker compose --profile chain pull
+
+      - name: docker compose up -d
+        run: docker compose --profile chain up -d --build
+
+      - name: wait for bsv-node JSON-RPC
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS --user cardtable:cardtable-dev-rpc-password \
+                 -H 'content-type: application/json' \
+                 --data '{"method":"getblockcount","params":[],"id":1}' \
+                 http://127.0.0.1:18332/ >/dev/null 2>&1; then
+              echo "bsv-node RPC up"; exit 0
+            fi
+            sleep 2
+          done
+          echo "bsv-node never came up; dumping logs"
+          docker compose --profile chain logs bsv-node || true
+          exit 1
+
+      - name: wait for spv /healthz
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8082/healthz >/dev/null 2>&1; then
+              echo "spv up"; exit 0
+            fi
+            sleep 2
+          done
+          echo "spv never came up; dumping logs"
+          docker compose --profile chain logs spv || true
+          exit 1
+
+      - name: smoke spv /headers/latest
+        run: |
+          tip=$(curl -fsS http://127.0.0.1:8082/headers/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tip"])')
+          echo "current tip: $tip"
+
+      - name: tear down
+        if: always()
+        run: docker compose --profile chain down -v
+
   docker-publish:
     name: publish relay image to GHCR
     runs-on: ubuntu-latest

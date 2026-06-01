@@ -1,0 +1,27 @@
+{
+  "name": "cardtable-load-test",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Load-test harness. Opens N concurrent WebSocket sessions to a live cardtable relay, drives one Join per session, and reports connect-rate / ack-latency p50 / p95 / p99 / max.",
+  "license": "MIT",
+  "bin": {
+    "cardtable-load-test": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "echo 'no build — node loads .ts via ts-node-esm at runtime'",
+    "start": "node --experimental-strip-types ./src/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cardtable/wire-ts": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}
