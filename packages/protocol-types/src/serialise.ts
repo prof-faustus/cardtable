@@ -25,8 +25,10 @@ import { asHash256 } from './primitives.js';
 
 const TAG_PLAYER = 0x0002;
 const TAG_ROUNDSTATE = 0x0009;
+const TAG_CONCEALED_CARD = 0x0008;
 const ROUNDSTATE_VERSION = 1;
 const PLAYER_VERSION = 1;
+const CONCEALED_CARD_VERSION = 1;
 
 const ZERO_32 = new Uint8Array(32);
 
@@ -157,6 +159,29 @@ function encVisibleCards(cards: RoundState['visible_cards']): Uint8Array {
   return concat(...parts);
 }
 
+function encConcealedCard(c: NonNullable<RoundState['concealed_deck']>[number]): Uint8Array {
+  return concat(
+    encU16LE(TAG_CONCEALED_CARD),
+    encU8(CONCEALED_CARD_VERSION),
+    encU32LE(c.card_commitment.position),
+    encBytes32Hex(c.card_commitment.card_commitment),
+    encBytes32Hex(c.card_commitment.card_nonce),
+    encString(c.ciphertext),
+    encString(c.custody_outpoint),
+    // The 33-byte compressed pubkey: same convention as
+    // encPlayer — take the trailing 32 bytes (drop the parity prefix).
+    encBytes32Hex(c.holder_pubkey.substring(c.holder_pubkey.length - 64)),
+    encString(c.lifecycle_state),
+  );
+}
+
+function encOptionalConcealedDeck(deck: RoundState['concealed_deck']): Uint8Array {
+  if (deck === null) return encBool(false);
+  const parts: Uint8Array[] = [encBool(true), encVarint(deck.length)];
+  for (const c of deck) parts.push(encConcealedCard(c));
+  return concat(...parts);
+}
+
 /**
  * Canonical encoding of a RoundState, with the state_hash field
  * replaced by 32 zero bytes (so the hash can be embedded recursively
@@ -183,6 +208,7 @@ export function encodeRoundState(state: RoundState): Uint8Array {
     encArrayBytes32(state.successor_template_hashes),
     encOptionalHash(state.combined_entropy),
     encOptionalHash(state.deck_commitment_hash),
+    encOptionalConcealedDeck(state.concealed_deck),
     encOptionalHash(state.prior_state_hash),
     ZERO_32, // state_hash placeholder (self-reference)
   );

@@ -19,10 +19,12 @@ import (
 )
 
 const (
-	tagPlayer       uint16 = 0x0002
-	tagRoundState   uint16 = 0x0009
-	playerVersion   uint8  = 1
-	roundStateVersion uint8 = 1
+	tagPlayer            uint16 = 0x0002
+	tagConcealedCard     uint16 = 0x0008
+	tagRoundState        uint16 = 0x0009
+	playerVersion        uint8  = 1
+	concealedCardVersion uint8  = 1
+	roundStateVersion    uint8  = 1
 )
 
 var zero32 = make([]byte, 32)
@@ -226,6 +228,54 @@ func encPlayer(p PlayerState) ([]byte, error) {
 	), nil
 }
 
+func encConcealedCard(c ConcealedCard) ([]byte, error) {
+	commit, err := encBytes32Hex(string(c.CardCommitment.CardCommitment))
+	if err != nil {
+		return nil, fmt.Errorf("encConcealedCard: card_commitment: %w", err)
+	}
+	nonce, err := encBytes32Hex(string(c.CardCommitment.CardNonce))
+	if err != nil {
+		return nil, fmt.Errorf("encConcealedCard: card_nonce: %w", err)
+	}
+	pkHex := string(c.HolderPubkey)
+	if len(pkHex) < 64 {
+		return nil, fmt.Errorf("encConcealedCard: holder_pubkey shorter than 32 bytes hex: %q", pkHex)
+	}
+	holderTail, err := encBytes32Hex(pkHex[len(pkHex)-64:])
+	if err != nil {
+		return nil, fmt.Errorf("encConcealedCard: holder_pubkey tail: %w", err)
+	}
+	return concat(
+		encU16LE(tagConcealedCard),
+		encU8(concealedCardVersion),
+		encU32LE(uint32(c.CardCommitment.Position)),
+		commit,
+		nonce,
+		encString(c.Ciphertext),
+		encString(string(c.CustodyOutpoint)),
+		holderTail,
+		encString(string(c.LifecycleState)),
+	), nil
+}
+
+// encOptionalConcealedDeck mirrors the TS encOptionalConcealedDeck:
+// nil  → bool(false)
+// else → bool(true) || varint(count) || each ConcealedCard
+func encOptionalConcealedDeck(deck []ConcealedCard) ([]byte, error) {
+	if deck == nil {
+		return encBool(false), nil
+	}
+	parts := [][]byte{encBool(true), encVarint(uint64(len(deck)))}
+	for i, c := range deck {
+		enc, err := encConcealedCard(c)
+		if err != nil {
+			return nil, fmt.Errorf("encOptionalConcealedDeck[%d]: %w", i, err)
+		}
+		parts = append(parts, enc)
+	}
+	return concat(parts...), nil
+}
+
 func encVisibleCards(cards []RevealedCard) []byte {
 	parts := [][]byte{encVarint(uint64(len(cards)))}
 	for _, c := range cards {
@@ -270,6 +320,10 @@ func EncodeRoundState(s RoundState) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("EncodeRoundState: deck_commitment_hash: %w", err)
 	}
+	concealedOpt, err := encOptionalConcealedDeck(s.ConcealedDeck)
+	if err != nil {
+		return nil, fmt.Errorf("EncodeRoundState: concealed_deck: %w", err)
+	}
 	var priorOpt []byte
 	if s.PriorStateHash != nil {
 		priorOpt, err = encOptionalHash(*s.PriorStateHash)
@@ -298,6 +352,7 @@ func EncodeRoundState(s RoundState) ([]byte, error) {
 		successorRefs,
 		combinedOpt,
 		deckOpt,
+		concealedOpt,
 		priorOpt,
 		zero32,
 	), nil
