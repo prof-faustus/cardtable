@@ -331,6 +331,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -344,9 +347,33 @@ jobs:
       - name: build TS workspace + client-web bundle
         run: pnpm build
 
+      - name: build the relay binary
+        working-directory: apps/relay-go
+        run: go build -o ../../bin/relay ./cmd/relay
+
       - name: install chromium for playwright
         working-directory: tests/browser-smoke
         run: pnpm exec playwright install --with-deps chromium
+
+      - name: start relay (background)
+        run: |
+          ./bin/relay \
+            --addr :8080 --ws-addr :8081 \
+            --game 00000000000000000000000000000000000000000000000000000000000000aa \
+            --start-height 100 > relay.log 2>&1 &
+          echo $! > relay.pid
+
+      - name: wait for /healthz
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8081/healthz >/dev/null 2>&1; then
+              echo "relay up"; exit 0
+            fi
+            sleep 1
+          done
+          echo 'relay never came up'
+          cat relay.log || true
+          exit 1
 
       - name: start vite preview
         working-directory: apps/client-web
@@ -366,21 +393,31 @@ jobs:
           cat apps/client-web/vite.log || true
           exit 1
 
-      - name: run browser smoke tests
+      - name: run browser smoke tests (offline + online)
         working-directory: tests/browser-smoke
         env:
           CARDTABLE_CLIENT_URL: http://localhost:4173
+          CARDTABLE_RUN_ONLINE_BROWSER: '1'
         run: pnpm exec playwright test
 
-      - name: print vite log on failure
+      - name: print logs on failure
         if: failure()
-        run: cat apps/client-web/vite.log || true
+        run: |
+          echo '--- vite.log ---'
+          cat apps/client-web/vite.log || true
+          echo '--- relay.log ---'
+          cat relay.log || true
 
       - name: stop vite preview
         if: always()
         working-directory: apps/client-web
         run: |
           if [ -f vite.pid ]; then kill "$(cat vite.pid)" 2>/dev/null || true; fi
+
+      - name: stop relay
+        if: always()
+        run: |
+          if [ -f relay.pid ]; then kill "$(cat relay.pid)" 2>/dev/null || true; fi
 
   docker-publish:
     name: publish relay image to GHCR
