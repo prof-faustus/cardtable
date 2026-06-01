@@ -99,7 +99,10 @@ export function buildTimeoutTx(args: {
   if (!args.branch.locktime || args.branch.locktime.kind !== 'relative_blocks') {
     throw new Error(`buildTimeoutTx: branch.locktime must be relative_blocks`);
   }
-  const blocks = args.branch.locktime.blocks;
+  // The script-templates LockTimeSpec uses the field name
+  // `blocks_since_input_confirmation` — same semantics as our
+  // fallback enumeration's `blocks`.
+  const blocks = args.branch.locktime.blocks_since_input_confirmation;
   const input: TxInput = {
     prevTxid: args.prev.prevTxid,
     prevVout: args.prev.prevVout,
@@ -131,7 +134,7 @@ export function buildRecoveryTx(args: {
   if (!args.branch.locktime || args.branch.locktime.kind !== 'absolute_height') {
     throw new Error(`buildRecoveryTx: branch.locktime must be absolute_height`);
   }
-  const height = args.branch.locktime.height;
+  const height = args.branch.locktime.not_before_height;
   if (height >= 500_000_000) {
     throw new Error(`buildRecoveryTx: height ${height} would be interpreted as a Unix timestamp by consensus`);
   }
