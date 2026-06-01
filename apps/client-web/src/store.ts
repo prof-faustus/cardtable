@@ -37,7 +37,10 @@ import type {
 } from '@cardtable/protocol-types';
 import { create } from 'zustand';
 
-const GAME_ID = asGameId('a'.repeat(64));
+// Must match the relay's --game flag (and stay 32-byte hex so the
+// mental-poker verification gate's hex.DecodeString accepts it).
+// The reference relay binary defaults to this same value.
+const GAME_ID = asGameId('00000000000000000000000000000000000000000000000000000000000000aa');
 const RULE_HASH = asRuleSetHash('b'.repeat(64));
 const RECOVERY_DEADLINE = asBlockHeight(244);
 
