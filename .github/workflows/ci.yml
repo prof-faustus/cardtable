@@ -54,6 +54,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
+      # Populate go.sum from go.mod's `require` directives. Local
+      # devs run this themselves; CI does it inline so a fresh
+      # clone tests cleanly without a committed go.sum.
+      - run: go mod tidy
       - run: go vet ./...
       - run: go build ./...
       - run: go test -v ./...
@@ -81,12 +85,16 @@ jobs:
       - name: build the relay binary (linux/macos)
         if: runner.os != 'Windows'
         working-directory: apps/relay-go
-        run: go build -o ../../bin/relay ./cmd/relay
+        run: |
+          go mod tidy
+          go build -o ../../bin/relay ./cmd/relay
 
       - name: build the relay binary (windows)
         if: runner.os == 'Windows'
         working-directory: apps/relay-go
-        run: go build -o ../../bin/relay.exe ./cmd/relay
+        run: |
+          go mod tidy
+          go build -o ../../bin/relay.exe ./cmd/relay
 
       - name: build TS workspace (codecs needed by the integration package)
         run: pnpm build
@@ -190,12 +198,16 @@ jobs:
       - name: build the relay binary (linux/macos)
         if: runner.os != 'Windows'
         working-directory: apps/relay-go
-        run: go build -o ../../bin/relay ./cmd/relay
+        run: |
+          go mod tidy
+          go build -o ../../bin/relay ./cmd/relay
 
       - name: build the relay binary (windows)
         if: runner.os == 'Windows'
         working-directory: apps/relay-go
-        run: go build -o ../../bin/relay.exe ./cmd/relay
+        run: |
+          go mod tidy
+          go build -o ../../bin/relay.exe ./cmd/relay
 
       - name: build TS workspace
         run: pnpm build
@@ -349,7 +361,9 @@ jobs:
 
       - name: build the relay binary
         working-directory: apps/relay-go
-        run: go build -o ../../bin/relay ./cmd/relay
+        run: |
+          go mod tidy
+          go build -o ../../bin/relay ./cmd/relay
 
       - name: install chromium for playwright
         working-directory: tests/browser-smoke

@@ -40,6 +40,10 @@ jobs:
         with:
           go-version: '1.23'
 
+      - name: populate go.sum
+        working-directory: apps/relay-go
+        run: go mod tidy
+
       - name: build relay
         working-directory: apps/relay-go
         run: go build -trimpath -ldflags="-s -w" -o ../../bin/relay-${{ matrix.goos }}-${{ matrix.arch }}${{ matrix.ext }} ./cmd/relay
