@@ -32,3 +32,6 @@ export type { FallbackBranch, FallbackKind, LockTimeSpec } from './fallback.js';
 
 export { materialiseFallbackGraph } from './fallback-build.js';
 export type { BuildContext, BuiltFallbackBranch } from './fallback-build.js';
+
+export { buildCooperativeTx, buildTimeoutTx, buildRecoveryTx } from './tx-orchestrator.js';
+export type { PrevOutpoint, SuccessorOutput } from './tx-orchestrator.js';

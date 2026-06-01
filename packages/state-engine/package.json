@@ -23,7 +23,8 @@
   "dependencies": {
     "@cardtable/crypto-cards": "workspace:*",
     "@cardtable/protocol-types": "workspace:*",
-    "@cardtable/script-templates": "workspace:*"
+    "@cardtable/script-templates": "workspace:*",
+    "@cardtable/tx-builder": "workspace:*"
   },
   "devDependencies": {
     "@noble/secp256k1": "^2.1.0",

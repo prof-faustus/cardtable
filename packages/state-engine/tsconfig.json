@@ -8,7 +8,8 @@
   "references": [
     { "path": "../protocol-types" },
     { "path": "../crypto-cards" },
-    { "path": "../script-templates" }
+    { "path": "../script-templates" },
+    { "path": "../tx-builder" }
   ],
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules", "__tests__"]
