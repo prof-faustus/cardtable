@@ -20,6 +20,12 @@ const RUN = process.env['CARDTABLE_RUN_ONLINE_BROWSER'] === '1';
 test.skip(!RUN, 'set CARDTABLE_RUN_ONLINE_BROWSER=1 with a fresh relay running on :8081');
 
 test('online mode: connect → seat 0 → state mirrors over WebSocket', async ({ page }) => {
+  // Capture browser-side console + page errors so failures surface
+  // root cause instead of just a stuck assertion.
+  const consoleLines: string[] = [];
+  page.on('console', (msg) => consoleLines.push(`[${msg.type()}] ${msg.text()}`));
+  page.on('pageerror', (err) => consoleLines.push(`[pageerror] ${err.message}`));
+
   await page.goto('/');
 
   await expect(page.getByTestId('connection-mode')).toHaveText('offline');
@@ -33,5 +39,17 @@ test('online mode: connect → seat 0 → state mirrors over WebSocket', async (
   // The relay's MsgTableState push arrives asynchronously; the
   // store's handleFrame overwrites store.state with the parsed
   // server-side state, so seat-count should flip to 1.
-  await expect(page.getByTestId('seat-count')).toHaveText('1');
+  try {
+    await expect(page.getByTestId('seat-count')).toHaveText('1');
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('--- browser console after seat-count timeout ---');
+    for (const line of consoleLines) console.error(line);
+    // eslint-disable-next-line no-console
+    console.error('--- DOM snapshot ---');
+    const html = await page.content();
+    // eslint-disable-next-line no-console
+    console.error(html.length > 4000 ? `${html.substring(0, 4000)}…[truncated]` : html);
+    throw e;
+  }
 });
