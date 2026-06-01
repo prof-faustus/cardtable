@@ -8,6 +8,7 @@ const (
 	ActionEntropyCommit  ActionType = "EntropyCommit"
 	ActionEntropyReveal  ActionType = "EntropyReveal"
 	ActionCardReveal     ActionType = "CardReveal"
+	ActionDealConcealed  ActionType = "DealConcealed"
 	ActionBet            ActionType = "BetAction"
 	ActionPass           ActionType = "Pass"
 	ActionFold           ActionType = "Fold"
@@ -42,6 +43,10 @@ type SignedAction struct {
 	Entropy            Hash256     `json:"entropy,omitempty"`
 	Reveal             RevealProof `json:"reveal"`
 	BetAmount          Satoshis    `json:"bet_amount,omitempty"`
+	// DealConcealed: orchestrator-supplied deck of encrypted card
+	// objects (one per position, ordered or unordered; the engine
+	// validates the position set).
+	ConcealedCards     []ConcealedCard `json:"concealed_cards,omitempty"`
 	DefaultConsequence ActionType  `json:"default_consequence,omitempty"`
 	SilencedSeat       *Seat       `json:"silenced_seat,omitempty"`
 	RecoveryTrigger    string      `json:"recovery_trigger,omitempty"`

@@ -13,7 +13,7 @@ import type {
   Satoshis,
   Seat,
 } from './primitives.js';
-import type { RevealProof } from './cards.js';
+import type { ConcealedCard, RevealProof } from './cards.js';
 
 /** Every action type a player or auto-trigger can produce. */
 export type ActionType =
@@ -21,6 +21,7 @@ export type ActionType =
   | 'EntropyCommit'
   | 'EntropyReveal'
   | 'CardReveal'
+  | 'DealConcealed'
   | 'BetAction'
   | 'Pass'
   | 'Fold'
@@ -71,6 +72,22 @@ export interface EntropyRevealAction extends SignedActionBase {
 export interface CardRevealAction extends SignedActionBase {
   readonly action_type: 'CardReveal';
   readonly reveal: RevealProof;
+}
+
+/**
+ * DealConcealed populates `RoundState.concealed_deck` at the
+ * S5 DECK_COMMITTED transition. The orchestrator supplies one
+ * `ConcealedCard` per deck position; the engine validates the
+ * count and uniqueness of positions, then stamps the deck onto
+ * the round state. Subsequent `Fold` actions then have a deck
+ * to act on.
+ *
+ * Legal at S5_DECK_COMMITTED only; rejected if a concealed deck
+ * is already populated (idempotency guard).
+ */
+export interface DealConcealedAction extends SignedActionBase {
+  readonly action_type: 'DealConcealed';
+  readonly concealed_cards: readonly ConcealedCard[];
 }
 
 /** Bet action commits a bet amount at S8 BET_DECISION. */
@@ -128,6 +145,7 @@ export type SignedAction =
   | EntropyCommitAction
   | EntropyRevealAction
   | CardRevealAction
+  | DealConcealedAction
   | BetAction
   | PassAction
   | FoldAction

@@ -46,7 +46,7 @@ func GetLegalActions(sc types.StateClass) []types.ActionType {
 	case types.StateEntropyReveal:
 		return []types.ActionType{types.ActionEntropyReveal}
 	case types.StateDeckCommitted:
-		return []types.ActionType{types.ActionCardReveal}
+		return []types.ActionType{types.ActionCardReveal, types.ActionDealConcealed}
 	case types.StateCardRevealFirst:
 		return []types.ActionType{types.ActionCardReveal}
 	case types.StateCardRevealSecond:
@@ -94,6 +94,8 @@ func ApplyAction(state types.RoundState, action types.SignedAction, ruleSet type
 		return applyEntropyReveal(state, action)
 	case types.ActionCardReveal:
 		return applyCardReveal(state, action)
+	case types.ActionDealConcealed:
+		return applyDealConcealed(state, action, ruleSet)
 	case types.ActionBet:
 		return applyBet(state, action, ruleSet)
 	case types.ActionPass:
@@ -314,6 +316,43 @@ func applyBet(state types.RoundState, action types.SignedAction, ruleSet types.R
 	next.StateClass = types.StateCardRevealThird
 	next.PotValue = pot
 	next.AllowedActions = GetLegalActions(types.StateCardRevealThird)
+	hash := state.StateHash
+	next.PriorStateHash = &hash
+	return next, nil
+}
+
+// applyDealConcealed stamps the orchestrator-supplied concealed
+// deck onto the round state at S5_DECK_COMMITTED. Per
+// spec/card-protocol.md §6 the engine validates count + position
+// uniqueness; the encryption is the orchestrator's responsibility
+// (per-card payload sealed to each holder's card_encryption_pubkey).
+func applyDealConcealed(state types.RoundState, action types.SignedAction, ruleSet types.RuleSet) (types.RoundState, *types.ProtocolError) {
+	if state.StateClass != types.StateDeckCommitted {
+		return state, types.NewProtocolError(types.ErrInvalidActionForState,
+			fmt.Sprintf("DealConcealed outside S5 (got %s)", state.StateClass))
+	}
+	if len(state.ConcealedDeck) > 0 {
+		return state, types.NewProtocolError(types.ErrInvalidStateTransition, "concealed deck already dealt")
+	}
+	if len(action.ConcealedCards) != ruleSet.DeckFormat {
+		return state, types.NewProtocolError(types.ErrInvalidStateTransition,
+			fmt.Sprintf("DealConcealed: expected %d cards, got %d", ruleSet.DeckFormat, len(action.ConcealedCards)))
+	}
+	seen := make(map[int]struct{}, len(action.ConcealedCards))
+	for _, c := range action.ConcealedCards {
+		p := c.CardCommitment.Position
+		if p < 0 || p >= ruleSet.DeckFormat {
+			return state, types.NewProtocolError(types.ErrInvalidStateTransition,
+				fmt.Sprintf("DealConcealed: position %d out of [0, %d)", p, ruleSet.DeckFormat))
+		}
+		if _, dup := seen[p]; dup {
+			return state, types.NewProtocolError(types.ErrInvalidStateTransition,
+				fmt.Sprintf("DealConcealed: duplicate position %d", p))
+		}
+		seen[p] = struct{}{}
+	}
+	next := cloneState(state)
+	next.ConcealedDeck = append([]types.ConcealedCard{}, action.ConcealedCards...)
 	hash := state.StateHash
 	next.PriorStateHash = &hash
 	return next, nil

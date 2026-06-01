@@ -85,6 +85,7 @@ export type {
   EntropyCommitAction,
   EntropyRevealAction,
   CardRevealAction,
+  DealConcealedAction,
   BetAction,
   PassAction,
   FoldAction,

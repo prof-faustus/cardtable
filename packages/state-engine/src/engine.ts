@@ -13,6 +13,7 @@ import type {
   BlockHeight,
   CardRevealAction,
   ConcealedCard,
+  DealConcealedAction,
   EntropyCommitAction,
   EntropyRevealAction,
   FoldAction,
@@ -107,7 +108,7 @@ export function getLegalActions(state_class: StateClass): readonly ActionType[] 
     case 'S2_TABLE_LOCKED': return ['EntropyCommit'];
     case 'S3_ENTROPY_COMMIT_WINDOW': return ['EntropyCommit'];
     case 'S4_ENTROPY_REVEAL_WINDOW': return ['EntropyReveal'];
-    case 'S5_DECK_COMMITTED': return ['CardReveal'];
+    case 'S5_DECK_COMMITTED': return ['CardReveal', 'DealConcealed'];
     case 'S6_CARD_REVEAL_FIRST': return ['CardReveal'];
     case 'S7_CARD_REVEAL_SECOND': return ['BetAction', 'Pass', 'Timeout', 'Fold'];
     case 'S8_BET_DECISION': return ['BetAction', 'Pass', 'Timeout', 'Fold'];
@@ -168,6 +169,7 @@ export function applyAction(
     case 'EntropyCommit': return applyEntropyCommit(state, action, ruleSet);
     case 'EntropyReveal': return applyEntropyReveal(state, action, ruleSet);
     case 'CardReveal': return applyCardReveal(state, action, ruleSet);
+    case 'DealConcealed': return applyDealConcealed(state, action, ruleSet);
     case 'BetAction': return applyBet(state, action, ruleSet);
     case 'Pass': return applyPass(state, action, ruleSet);
     case 'Fold': return applyFold(state, action, ruleSet);
@@ -382,6 +384,55 @@ function applyCardReveal(
     visible_cards: [...state.visible_cards, action.reveal.revealed_card],
     acting_player_seat,
     allowed_actions: getLegalActions(finalClass),
+    prior_state_hash: state.state_hash,
+  });
+}
+
+/**
+ * DealConcealed stamps the orchestrator-supplied concealed deck
+ * onto the round state at S5_DECK_COMMITTED. The orchestrator
+ * owns the encryption (per-card payload sealed to each holder's
+ * card_encryption_pubkey via @cardtable/crypto-cards.encryptForHolder);
+ * the engine validates:
+ *
+ *   - count matches `ruleSet.deck_format` (52 or 54)
+ *   - positions are 0..deck_format-1 with no duplicates
+ *   - no concealed deck has already been dealt for this round
+ *
+ * Stays at S5; subsequent Fold / CardReveal both work because the
+ * concealed_deck is now non-null.
+ */
+function applyDealConcealed(
+  state: RoundState,
+  action: DealConcealedAction,
+  ruleSet: RuleSet,
+): Result<RoundState, ProtocolError> {
+  if (state.state_class !== 'S5_DECK_COMMITTED') {
+    return err(protocolError('INVALID_ACTION_FOR_STATE', `DealConcealed outside S5 (got ${state.state_class})`));
+  }
+  if (state.concealed_deck !== null) {
+    return err(protocolError('INVALID_STATE_TRANSITION', 'concealed deck already dealt'));
+  }
+  if (action.concealed_cards.length !== ruleSet.deck_format) {
+    return err(protocolError(
+      'INVALID_STATE_TRANSITION',
+      `DealConcealed: expected ${ruleSet.deck_format} cards, got ${action.concealed_cards.length}`,
+    ));
+  }
+  const seen = new Set<number>();
+  for (const c of action.concealed_cards) {
+    const p = c.card_commitment.position;
+    if (p < 0 || p >= ruleSet.deck_format) {
+      return err(protocolError('INVALID_STATE_TRANSITION', `DealConcealed: position ${p} out of [0, ${ruleSet.deck_format})`));
+    }
+    if (seen.has(p)) {
+      return err(protocolError('INVALID_STATE_TRANSITION', `DealConcealed: duplicate position ${p}`));
+    }
+    seen.add(p);
+  }
+  return ok({
+    ...state,
+    concealed_deck: [...action.concealed_cards],
     prior_state_hash: state.state_hash,
   });
 }
