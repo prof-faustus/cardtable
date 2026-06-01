@@ -105,18 +105,18 @@ func TestChainsFromHash(t *testing.T) {
 	}
 }
 
-// TestCrossLanguageStateHashSeatOpen logs the Go state hash for the
-// reference empty S1_SEAT_OPEN state. The encoder gained a
-// concealed_deck field; a follow-up commit re-locks the matching
-// constant on both sides.
+// TestCrossLanguageStateHashSeatOpen pins the Go state hash for the
+// reference empty S1_SEAT_OPEN state. The TypeScript reference at
+// packages/protocol-types/__tests__/state-hash.test.ts asserts the
+// same constant. Any change MUST be matched in both languages.
 func TestCrossLanguageStateHashSeatOpen(t *testing.T) {
+	const expected = "ede024c39e71fb16e652fdf949978adf8426ac62cdadb1c2ccd1baf353a63d50"
 	s := referenceState()
 	h, err := ComputeStateHash(s)
 	if err != nil {
 		t.Fatalf("ComputeStateHash: %v", err)
 	}
-	t.Logf("state_hash_s1_seat_open_go=%s", h)
-	if len(string(h)) != 64 {
-		t.Errorf("state_hash length: want 64, got %d", len(string(h)))
+	if string(h) != expected {
+		t.Errorf("state_hash_s1_seat_open:\n  want %s\n  got  %s", expected, h)
 	}
 }
