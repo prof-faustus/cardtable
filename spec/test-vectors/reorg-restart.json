@@ -1,0 +1,17 @@
+{
+  "vector_id": "reorg-restart",
+  "description": "A block confirming a game action is orphaned by a competing chain. Per spec/ordering-rules.md §5 the indexer rewinds to the deepest common ancestor and forward-applies the new chain, reporting which actions were orphaned. The pure engine is reorg-agnostic; chain.Reindex drives the replay.",
+  "game_id": "00000000000000000000000000000000000000000000000000000000000000aa",
+  "old_chain": [
+    { "hash": "g", "height": 101, "joins": [{ "seat": 0, "nonce": "g0" }] },
+    { "hash": "old", "height": 102, "joins": [{ "seat": 1, "nonce": "old1" }] }
+  ],
+  "new_chain": [
+    { "hash": "g", "height": 101, "joins": [{ "seat": 0, "nonce": "g0" }] },
+    { "hash": "new", "height": 102, "joins": [{ "seat": 1, "nonce": "new1" }] }
+  ],
+  "expected_ancestor_blocks": 1,
+  "expected_orphaned_nonces": ["old1"],
+  "expected_player_count": 2,
+  "notes": "Consumed by apps/relay-go/tests/adversarial/vectors_test.go driving the real chain.Reindex."
+}

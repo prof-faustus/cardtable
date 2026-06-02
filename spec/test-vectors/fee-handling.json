@@ -1,0 +1,13 @@
+{
+  "vector_id": "fee-handling",
+  "description": "Bet/settlement amount validation must fail gracefully (a typed error, never a panic or a bad payout). A bet outside [min_bet, max_bet] is rejected with INVALID_BET_AMOUNT.",
+  "rule_set": {
+    "min_bet": 1,
+    "max_bet": 100
+  },
+  "cases": [
+    { "bet_amount": 0, "expected_error": "INVALID_BET_AMOUNT" },
+    { "bet_amount": 1000000, "expected_error": "INVALID_BET_AMOUNT" }
+  ],
+  "notes": "Consumed by apps/relay-go/tests/adversarial/vectors_test.go driving engine.ApplyAction at S8_BET_DECISION."
+}

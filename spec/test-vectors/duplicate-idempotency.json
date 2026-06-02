@@ -1,0 +1,15 @@
+{
+  "vector_id": "duplicate-idempotency",
+  "description": "Duplicate message propagation must be idempotent. Re-submitting an action whose action_nonce was already accepted is rejected with STALE_STATE and the canonical state is unchanged.",
+  "game_id": "00000000000000000000000000000000000000000000000000000000000000aa",
+  "action": {
+    "action_type": "Join",
+    "action_nonce": "dup",
+    "acting_player_seat": 0,
+    "player_pubkey": "020101010101010101010101010101010101010101010101010101010101010101",
+    "stake_amount": 1000
+  },
+  "expected_first_result": "ok",
+  "expected_duplicate_error": "STALE_STATE",
+  "notes": "Consumed by apps/relay-go/tests/adversarial/vectors_test.go driving the real session.Submit dedup."
+}

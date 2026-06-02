@@ -45,3 +45,13 @@ form, not on the JSON.
 | `double-spend-attempt.json` | Two `BetAction` txs for the same state; deterministic resolution per `spec/ordering-rules.md` §3 |
 | `reveal-proof.json` | A `CardReveal` with valid preimage + commitment is accepted; one with wrong preimage is rejected |
 | `recovery.json` | Recovery after global timeout refunds seated stakes per `recovery_rules` |
+| `timeout-canonicity.json` | Two competing `Timeout` txs; quorum tier of `spec/ordering-rules.md` §3.1 selects the deterministic winner (scenario 7) |
+| `mempool-eviction.json` | Evicted tx → rebroadcast up to `relay_rebroadcast_max` → `RECOVERY_RECOMMENDED` per §4 (scenario 12) |
+| `reorg-restart.json` | Orphaned fork block → rewind to deepest common ancestor + forward-apply per §5 (reorg) |
+| `fee-handling.json` | Out-of-range bet amounts are rejected gracefully with `INVALID_BET_AMOUNT` (scenario 13) |
+| `duplicate-idempotency.json` | Re-submitting an accepted `action_nonce` is rejected `STALE_STATE`; state unchanged (scenario 10) |
+
+The Phase-6 scenario vectors above are executed against the real
+implementation — the ordering vectors by `tools/tx-simulator` (TS,
+`pickConflictWinner`) and the chain/engine/session vectors by
+`apps/relay-go/tests/adversarial/vectors_test.go` (Go).

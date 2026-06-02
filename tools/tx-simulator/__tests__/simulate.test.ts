@@ -119,19 +119,19 @@ describe('tx-simulator — mempool eviction (#12)', () => {
   });
 });
 
-describe('tx-simulator — conformance with double-spend-attempt.json', () => {
-  it('matches expected_winner_candidate_id via pickConflictWinner', () => {
-    const vectorUrl = new URL('../../../spec/test-vectors/double-spend-attempt.json', import.meta.url);
-    const vector = JSON.parse(readFileSync(vectorUrl, 'utf8')) as {
-      candidate_actions: {
-        candidate_id: string;
-        txid_hint: string;
-        observed_by_quorum: boolean;
-        confirmed_in_block: boolean;
-      }[];
-      expected_winner_candidate_id: string;
-    };
-    const toSnap = (c: (typeof vector.candidate_actions)[number]): CandidateSnapshot => ({
+describe('tx-simulator — ordering conformance with spec vectors', () => {
+  interface OrderingVector {
+    candidate_actions: {
+      candidate_id: string;
+      txid_hint: string;
+      observed_by_quorum: boolean;
+      confirmed_in_block: boolean;
+    }[];
+    expected_winner_candidate_id: string;
+  }
+
+  const resolve = (vector: OrderingVector): string => {
+    const toSnap = (c: OrderingVector['candidate_actions'][number]): CandidateSnapshot => ({
       // txid_hint is the vector's stand-in for the real txid used in the
       // tie-break; brand it without the 64-hex length check.
       txid: c.txid_hint as unknown as TxId,
@@ -141,7 +141,19 @@ describe('tx-simulator — conformance with double-spend-attempt.json', () => {
     const snaps = vector.candidate_actions.map(toSnap);
     let winnerSnap = snaps[0]!;
     for (let i = 1; i < snaps.length; i++) winnerSnap = pickConflictWinner(winnerSnap, snaps[i]!);
-    const winnerId = vector.candidate_actions.find((c) => (c.txid_hint as unknown as TxId) === winnerSnap.txid)!.candidate_id;
-    expect(winnerId).toBe(vector.expected_winner_candidate_id);
+    return vector.candidate_actions.find((c) => (c.txid_hint as unknown as TxId) === winnerSnap.txid)!.candidate_id;
+  };
+
+  const load = (file: string): OrderingVector =>
+    JSON.parse(readFileSync(new URL(`../../../spec/test-vectors/${file}`, import.meta.url), 'utf8')) as OrderingVector;
+
+  it('double-spend-attempt.json: txid tie-break', () => {
+    const v = load('double-spend-attempt.json');
+    expect(resolve(v)).toBe(v.expected_winner_candidate_id);
+  });
+
+  it('timeout-canonicity.json: quorum tier outranks txid order', () => {
+    const v = load('timeout-canonicity.json');
+    expect(resolve(v)).toBe(v.expected_winner_candidate_id);
   });
 });

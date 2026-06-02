@@ -1,0 +1,21 @@
+{
+  "vector_id": "timeout-canonicity",
+  "description": "Two clients each broadcast a Timeout transaction for the same S8 decision. Per spec/ordering-rules.md §3.1 the canonical winner is selected deterministically so honest peers converge: confirmed-in-block > observed-by-quorum > lexicographically-smaller txid.",
+  "candidate_actions": [
+    {
+      "candidate_id": "A",
+      "txid_hint": "1111111111111111111111111111111111111111111111111111111111111111",
+      "observed_by_quorum": false,
+      "confirmed_in_block": false
+    },
+    {
+      "candidate_id": "B",
+      "txid_hint": "2222222222222222222222222222222222222222222222222222222222222222",
+      "observed_by_quorum": true,
+      "confirmed_in_block": false
+    }
+  ],
+  "expected_winner_candidate_id": "B",
+  "expected_winner_rationale": "Neither is confirmed in a block; B is observed by the quorum and A is not, so tier-2 selects B regardless of the smaller txid of A.",
+  "notes": "Mirrors double-spend-attempt.json but exercises the quorum tier rather than the txid tie-break. Consumed by tools/tx-simulator conformance test via engine PickConflictWinner."
+}

@@ -1,0 +1,10 @@
+{
+  "vector_id": "mempool-eviction",
+  "description": "A relayed unconfirmed transaction is evicted from the mempool. Per spec/ordering-rules.md §4 the relay rebroadcasts up to relay_rebroadcast_max times, then escalates to RECOVERY_RECOMMENDED. Re-acceptance into the mempool resets nothing but produces no action.",
+  "rebroadcast_max": 2,
+  "txid": "ee11ee11ee11ee11ee11ee11ee11ee11ee11ee11ee11ee11ee11ee11ee11ee11",
+  "observations": ["not_in_mempool", "in_mempool", "not_in_mempool", "not_in_mempool", "not_in_mempool"],
+  "expected_events": ["REBROADCAST", "NONE", "REBROADCAST", "RECOVERY_RECOMMENDED", "NONE"],
+  "expected_rebroadcast_attempts": [1, 0, 2, 0, 0],
+  "notes": "status strings map to chain.TxStatus; expected_events to chain.EventKind. Consumed by apps/relay-go/tests/adversarial/vectors_test.go driving the real chain.Tracker."
+}
