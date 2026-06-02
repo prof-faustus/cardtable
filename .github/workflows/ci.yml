@@ -345,57 +345,6 @@ jobs:
         if: always()
         run: docker stop cardtable-relay || true
 
-  chain-integration:
-    name: live regtest chain (spv tracks bsv-node)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      # Build the relay/spv image and bring up the chain profile: a real
-      # bitcoinsv regtest node + the cardtable SPV service.
-      - name: bring up chain profile (bsv-node + spv)
-        run: docker compose -p cardtable --profile chain up -d --build bsv-node spv
-
-      - name: wait for bsv-node RPC
-        run: |
-          RPC="docker exec cardtable-bsv-node bitcoin-cli -regtest -rpcuser=cardtable -rpcpassword=cardtable-dev-rpc-password"
-          for i in $(seq 1 60); do
-            if $RPC getblockcount >/dev/null 2>&1; then echo "bsv-node up at height $($RPC getblockcount)"; exit 0; fi
-            sleep 2
-          done
-          echo "bsv-node did not become ready"; docker logs cardtable-bsv-node || true; exit 1
-
-      # The SPV poll loop retries, but a restart guarantees it binds to
-      # the now-ready node immediately.
-      - name: restart spv against the ready node
-        run: docker restart cardtable-spv && sleep 5
-
-      - name: mine blocks; assert spv /headers/latest tracks the live chain
-        run: |
-          set -e
-          RPC="docker exec cardtable-bsv-node bitcoin-cli -regtest -rpcuser=cardtable -rpcpassword=cardtable-dev-rpc-password"
-          ADDR=$($RPC getnewaddress)
-          $RPC generatetoaddress 6 "$ADDR" >/dev/null
-          H=$($RPC getblockcount)
-          echo "mined to height $H; waiting for SPV to converge"
-          for i in $(seq 1 15); do
-            TIP=$(curl -fsS http://localhost:8082/headers/latest || echo '{}')
-            echo "  node=$H spv=$TIP"
-            if echo "$TIP" | grep -q "\"tip\":$H"; then echo "PASS: spv tracked live tip $H"; exit 0; fi
-            sleep 2
-          done
-          echo "FAIL: spv did not converge on node height $H"; docker logs cardtable-spv || true; exit 1
-
-      - name: logs on failure
-        if: failure()
-        run: |
-          docker logs cardtable-bsv-node || true
-          docker logs cardtable-spv || true
-
-      - name: tear down
-        if: always()
-        run: docker compose -p cardtable --profile chain down -v || true
-
   browser-smoke:
     name: browser smoke (chromium, ubuntu)
     runs-on: ubuntu-latest
@@ -539,10 +488,23 @@ jobs:
           docker compose --profile chain logs spv || true
           exit 1
 
-      - name: smoke spv /headers/latest
+      - name: mine blocks; assert spv /headers/latest tracks the live chain
         run: |
-          tip=$(curl -fsS http://127.0.0.1:8082/headers/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tip"])')
-          echo "current tip: $tip"
+          set -e
+          RPC="docker exec cardtable-bsv-node bitcoin-cli -regtest -rpcuser=cardtable -rpcpassword=cardtable-dev-rpc-password"
+          ADDR=$($RPC getnewaddress)
+          $RPC generatetoaddress 6 "$ADDR" >/dev/null
+          H=$($RPC getblockcount)
+          echo "mined to height $H; waiting for SPV to converge"
+          for i in $(seq 1 15); do
+            TIP=$(curl -fsS http://127.0.0.1:8082/headers/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tip"])')
+            echo "  node=$H spv=$TIP"
+            if [ "$TIP" = "$H" ]; then echo "PASS: spv tracked live tip $H"; exit 0; fi
+            sleep 2
+          done
+          echo "FAIL: spv did not converge on node height $H"
+          docker compose --profile chain logs spv || true
+          exit 1
 
       - name: tear down
         if: always()
