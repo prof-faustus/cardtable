@@ -1,0 +1,27 @@
+# The relay/spv image only needs the Go source under apps/relay-go.
+# Keep the build context small and fast (especially over mounted
+# filesystems): exclude all JS/TS workspace artifacts and VCS data.
+.git
+node_modules
+**/node_modules
+**/dist
+**/dist-app
+**/.turbo
+**/coverage
+**/test-results
+bin
+.gotmp
+.gobin
+*.log
+relay.log
+relay.pid
+vite.log
+# JS/TS sources are not part of the Go image build.
+apps/client-web
+packages
+tools
+tests
+spec
+docs
+*.docx
+pnpm-lock.yaml

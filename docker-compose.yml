@@ -46,7 +46,11 @@ services:
     profiles: ['chain']
     image: bitcoinsv/bitcoin-sv:1.1.0
     container_name: cardtable-bsv-node
+    # The image entrypoint only initialises the regtest data dir + conf
+    # when argv[0] is `bitcoind` (otherwise it execs the bare flag and
+    # fails with "exec: -r: invalid option"). Lead with `bitcoind`.
     command:
+      - 'bitcoind'
       - '-regtest=1'
       - '-rpcuser=cardtable'
       - '-rpcpassword=cardtable-dev-rpc-password'
@@ -58,6 +62,9 @@ services:
       - '-printtoconsole=1'
       - '-disablewallet=0'
       - '-fallbackfee=0.00001'
+      # bitcoinsv 1.1.0 refuses to start unless this mandatory policy
+      # parameter is set explicitly.
+      - '-minminingtxfee=0.00000500'
     ports:
       - '18332:18332'
     volumes:
