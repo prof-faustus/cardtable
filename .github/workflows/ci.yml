@@ -49,6 +49,13 @@ jobs:
     defaults:
       run:
         working-directory: apps/relay-go
+    env:
+      # -trimpath strips local filesystem paths from built binaries: it
+      # makes builds reproducible and, on Windows runners, changes the
+      # linked test-binary content enough to avoid antivirus heuristics
+      # that occasionally quarantine Go *.test.exe files (see the
+      # "Building on Windows" note in the README).
+      GOFLAGS: -trimpath
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
