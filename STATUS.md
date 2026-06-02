@@ -1,6 +1,6 @@
 # Status — Poker (cardtable)
 
-_Last updated: 2026-06-01_
+_Last updated: 2026-06-02_
 
 **Overall:** Active/in-progress
 
@@ -21,20 +21,31 @@ timeout-default successor branches. First production target: In-Between
   concealment, fallback-graph enumeration, crypto-gated replay, and a
   `@cardtable/tx-builder` BSV encoder (BIP-143 sighash + DER signer) producing
   unsigned per-branch transactions.
-- Phase 6 (adversarial hardening) is **partial**: TS A01–A10 suite, full-round
-  end-to-end test, and a Go session-layer adversarial suite exist; remaining
-  named scenarios that depend on the on-chain BSV layer (double-spend, reorg,
-  mempool eviction) are still ahead.
+- Phase 6 (adversarial hardening) is **substantively complete**: TS A01–A10
+  suite, full-round end-to-end test, and a Go session-layer adversarial suite,
+  plus the on-chain BSV-layer scenarios — **double-spend** (engine
+  `PickConflictWinner` conformance against `spec/test-vectors/double-spend-attempt.json`
+  + confirmed/quorum precedence variants), **reorg** (new `internal/chain`
+  reindexer: deepest-common-ancestor rewind + forward-apply per
+  ordering-rules.md §5, reporting orphaned actions), and **mempool eviction**
+  (new `internal/chain` rebroadcast tracker per §4: rebroadcast up to
+  `relay_rebroadcast_max`=3 then `RECOVERY_RECOMMENDED`). All three are
+  test-covered against the FakeRPC/simulated chain; live-node fuzzing remains
+  future work.
 - Released **v0.1.0** (2026-06-01): GHCR multi-arch relay image + native
   binaries; CHANGELOG present. CI (GitHub Actions) declares ~22 jobs across
   Linux/macOS/Windows × Node and Go matrices. Several `tests/` and `tools/`
   subdirs are still empty placeholders (tests colocated with packages instead).
 - TS/Go references pinned to identical bytes via
-  `spec/test-vectors/mental-poker.json`. Test/CI results not re-run this pass.
+  `spec/test-vectors/mental-poker.json`. **Test suites re-run 2026-06-02 and
+  green**: TS `pnpm build && pnpm test` = 198 tests across 8 packages passing;
+  Go `go vet ./... && go test ./...` clean across all packages (incl. the new
+  `internal/chain` and `pkg/engine` ordering/double-spend tests). Integration
+  (live WS) and Playwright browser-smoke suites not run this pass.
 
 ## Version control
-- Git: yes, branch `main`, last commit `e4e3002 prep v0.1.1: changelog, compose
-  cleanup, chain-CI fix`. Working tree clean.
+- Git: yes, branch `main`. Working tree clean as of the Phase 6 on-chain
+  scenario commit (see `git log` for the current HEAD).
 
 ## How to verify / build
 - `package.json` (pnpm workspace, `pnpm-workspace.yaml`): typecheck + build +
