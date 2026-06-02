@@ -21,21 +21,32 @@ timeout-default successor branches. First production target: In-Between
   concealment, fallback-graph enumeration, crypto-gated replay, and a
   `@cardtable/tx-builder` BSV encoder (BIP-143 sighash + DER signer) producing
   unsigned per-branch transactions.
-- Phase 6 (adversarial hardening) is **substantively complete**: TS A01–A10
-  suite, full-round end-to-end test, and a Go session-layer adversarial suite,
-  plus the on-chain BSV-layer scenarios — **double-spend** (engine
-  `PickConflictWinner` conformance against `spec/test-vectors/double-spend-attempt.json`
-  + confirmed/quorum precedence variants), **reorg** (new `internal/chain`
-  reindexer: deepest-common-ancestor rewind + forward-apply per
-  ordering-rules.md §5, reporting orphaned actions), and **mempool eviction**
-  (new `internal/chain` rebroadcast tracker per §4: rebroadcast up to
-  `relay_rebroadcast_max`=3 then `RECOVERY_RECOMMENDED`). All three are
-  test-covered against the FakeRPC/simulated chain; live-node fuzzing remains
-  future work.
+- Phase 6 (adversarial hardening) is **complete**. All 14 mandatory scenarios
+  (PROJECT_SPEC §783) are covered by a named Go suite,
+  `apps/relay-go/tests/adversarial` (24 tests across disconnect/timeout/stale/
+  withheld-reveal/duplicate/conflicting-spend/mempool/invalid-branch/recovery +
+  chain files), alongside the TS A01–A10 suite and the full-round e2e. On-chain
+  scenarios are deterministic: **double-spend** (engine `PickConflictWinner`
+  conformance against `double-spend-attempt.json` + the new
+  `timeout-canonicity.json`), **reorg** (`internal/chain` reindexer: DCA rewind
+  + forward-apply per ordering-rules §5), **mempool eviction** (`internal/chain`
+  rebroadcast tracker per §4). The previously-empty Phase-6 areas are now built
+  out as green `@cardtable/*` packages: `tools/deck-simulator`,
+  `tools/tx-simulator`, `tests/replay`, `tests/simulation`. New
+  `spec/test-vectors` (timeout-canonicity, mempool-eviction, reorg-restart,
+  fee-handling, duplicate-idempotency) are wired to real code (TS + Go).
+- **Live on-chain verification done:** the `docker compose --profile chain`
+  stack (regtest `bitcoinsv/bitcoin-sv:1.1.0` + the cardtable SPV service) was
+  brought up in a VM and the SPV `/headers/latest` verified to track the live
+  chain tip as blocks were mined (8→14→18); a relay boots wired to the live SPV.
+  Two latent compose bugs were fixed in the process (missing `bitcoind` argv0;
+  missing `-minminingtxfee`). Automated as the CI `chain-integration` job;
+  see `docs/runbooks/live-chain-e2e.md`.
 - Released **v0.1.0** (2026-06-01): GHCR multi-arch relay image + native
   binaries; CHANGELOG present. CI (GitHub Actions) declares ~22 jobs across
-  Linux/macOS/Windows × Node and Go matrices. Several `tests/` and `tools/`
-  subdirs are still empty placeholders (tests colocated with packages instead).
+  Linux/macOS/Windows × Node and Go matrices, plus a `chain-integration` job.
+  All `tests/` and `tools/` subdirs are now populated (the repo-root
+  `tests/adversarial` documents the in-module Go suite location).
 - TS/Go references pinned to identical bytes via
   `spec/test-vectors/mental-poker.json`. **Test suites re-run 2026-06-02 and
   green**: TS `pnpm build && pnpm test` = 198 tests across 8 packages passing;
