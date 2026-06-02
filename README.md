@@ -136,6 +136,56 @@ node ./tools/transcript-verifier/dist/index.js \
   --game-id 00000000000000000000000000000000000000000000000000000000000000aa
 ```
 
+## Building on Windows
+
+The Quickstart works as-is on Linux/macOS and in CI. On Windows hosts a few
+environment quirks bite; apply these and every suite passes:
+
+- **`pnpm install` fails with `UNABLE_TO_VERIFY_LEAF_SIGNATURE`** — caused by
+  corporate TLS inspection re-signing the npm registry. Trust the Windows root
+  store via Node's system-CA flag (Node ≥ 22):
+
+  ```powershell
+  $env:NODE_OPTIONS = "--use-system-ca"
+  pnpm install
+  ```
+
+  Keep `NODE_OPTIONS=--use-system-ca` set for `pnpm install`/`build`/`test`.
+
+- **`go test ./...` reports `... contains a virus or potentially unwanted
+  software` and FAILs** — a false positive from the host antivirus (e.g.
+  Norton/Defender) quarantining freshly-linked Go `*.test.exe` binaries (the
+  `pkg/wire` test binary is the usual trigger). The code is fine. Build the
+  test binaries with `-trimpath`, which changes the linked output enough to
+  clear the heuristic, and make it the default:
+
+  ```powershell
+  go env -w GOFLAGS=-trimpath
+  go test ./...                 # now green in one command
+  ```
+
+  A *cold* full relink (`go clean -testcache` then `go test ./...`) can still
+  intermittently flake one timing-sensitive test
+  (`internal/spv/TestHTTPHeightSource_TracksLatest`, a 2-second HTTP-poll
+  deadline) when the AV scans every new binary at once. Warm re-runs are
+  stable. To eliminate it permanently, add a folder exclusion in your AV for
+  Go's temp dir (set a stable one with `go env -w GOTMPDIR=C:\Users\<you>\go-tmp`
+  and exclude that folder).
+
+- **Port `8081` already in use** — on machines running WSL, `wslrelay.exe`
+  binds `127.0.0.1:8081`. Run the relay on an alternate port and point the
+  integration tests at it:
+
+  ```powershell
+  .\bin\relay.exe --addr :8092 --ws-addr :8091 `
+    --game 00000000000000000000000000000000000000000000000000000000000000aa --start-height 100
+  $env:CARDTABLE_WS_URL = "ws://127.0.0.1:8091/ws"
+  ```
+
+  The `live-full-round` integration test and the online browser-smoke test each
+  require a **fresh** relay (the relay holds session state in memory, so a
+  reused seat collides). Restart the relay between those runs.
+
 ## How to contribute
 
 Read `PROJECT_SPEC.md` and the per-aspect spec docs under `spec/`
