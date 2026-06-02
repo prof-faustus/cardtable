@@ -1,0 +1,28 @@
+{
+  "name": "@cardtable/tx-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Transaction-graph simulator over @cardtable/tx-builder + the state-engine conflict-resolution rule. Builds competing BetAction transactions for one state, picks the deterministic winner (spec/ordering-rules §3), and models mempool eviction + rebroadcast (PROJECT_SPEC §783 scenarios 11–12).",
+  "license": "MIT",
+  "bin": {
+    "cardtable-tx-simulator": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b tsconfig.json"
+  },
+  "dependencies": {
+    "@cardtable/protocol-types": "workspace:*",
+    "@cardtable/state-engine": "workspace:*",
+    "@cardtable/tx-builder": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@cardtable/replay-tests",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic-replay verification suite. Builds a full mental-poker transcript through the crypto gate, then asserts replay() and replayWithVerification() reproduce the state exactly, that the state-hash chain links, and that out-of-order / truncated / reorg-restart transcripts behave per spec/state-machine.md §7.",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b tsconfig.json"
+  },
+  "dependencies": {
+    "@cardtable/crypto-cards": "workspace:*",
+    "@cardtable/protocol-types": "workspace:*",
+    "@cardtable/state-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@cardtable/deck-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic deck/reveal simulator over @cardtable/crypto-cards. Combines per-player entropy, builds the deck commitment, and emits per-position reveal proofs — plus honest/withheld/forged reveal outcomes for adversarial-scenario fixtures.",
+  "license": "MIT",
+  "bin": {
+    "cardtable-deck-simulator": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b tsconfig.json"
+  },
+  "dependencies": {
+    "@cardtable/crypto-cards": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}

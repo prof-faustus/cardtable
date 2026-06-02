@@ -189,6 +189,66 @@ importers:
         specifier: ^1.6.0
         version: 1.6.1(@types/node@20.19.41)(happy-dom@14.12.3)
 
+  tests/replay:
+    dependencies:
+      '@cardtable/crypto-cards':
+        specifier: workspace:*
+        version: link:../../packages/crypto-cards
+      '@cardtable/protocol-types':
+        specifier: workspace:*
+        version: link:../../packages/protocol-types
+      '@cardtable/state-engine':
+        specifier: workspace:*
+        version: link:../../packages/state-engine
+    devDependencies:
+      '@types/node':
+        specifier: ^20.12.7
+        version: 20.19.41
+      typescript:
+        specifier: ^5.4.5
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.41)(happy-dom@14.12.3)
+
+  tests/simulation:
+    dependencies:
+      '@cardtable/crypto-cards':
+        specifier: workspace:*
+        version: link:../../packages/crypto-cards
+      '@cardtable/protocol-types':
+        specifier: workspace:*
+        version: link:../../packages/protocol-types
+      '@cardtable/state-engine':
+        specifier: workspace:*
+        version: link:../../packages/state-engine
+    devDependencies:
+      '@types/node':
+        specifier: ^20.12.7
+        version: 20.19.41
+      typescript:
+        specifier: ^5.4.5
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.41)(happy-dom@14.12.3)
+
+  tools/deck-simulator:
+    dependencies:
+      '@cardtable/crypto-cards':
+        specifier: workspace:*
+        version: link:../../packages/crypto-cards
+    devDependencies:
+      '@types/node':
+        specifier: ^20.12.7
+        version: 20.19.41
+      typescript:
+        specifier: ^5.4.5
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.41)(happy-dom@14.12.3)
+
   tools/load-test:
     dependencies:
       '@cardtable/wire-ts':
@@ -247,6 +307,28 @@ importers:
       '@cardtable/state-engine':
         specifier: workspace:*
         version: link:../../packages/state-engine
+    devDependencies:
+      '@types/node':
+        specifier: ^20.12.7
+        version: 20.19.41
+      typescript:
+        specifier: ^5.4.5
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.41)(happy-dom@14.12.3)
+
+  tools/tx-simulator:
+    dependencies:
+      '@cardtable/protocol-types':
+        specifier: workspace:*
+        version: link:../../packages/protocol-types
+      '@cardtable/state-engine':
+        specifier: workspace:*
+        version: link:../../packages/state-engine
+      '@cardtable/tx-builder':
+        specifier: workspace:*
+        version: link:../../packages/tx-builder
     devDependencies:
       '@types/node':
         specifier: ^20.12.7

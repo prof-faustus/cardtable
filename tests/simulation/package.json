@@ -1,0 +1,24 @@
+{
+  "name": "@cardtable/simulation-tests",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Seeded multi-round In-Between simulation. Drives many full rounds through the engine with deterministic per-round bets and asserts protocol invariants (pot conservation, state-hash chaining, legal-action-only, bounded bets, deterministic-by-seed).",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b tsconfig.json"
+  },
+  "dependencies": {
+    "@cardtable/crypto-cards": "workspace:*",
+    "@cardtable/protocol-types": "workspace:*",
+    "@cardtable/state-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}

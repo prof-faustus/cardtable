@@ -17,8 +17,12 @@
     "tools/transcript-verifier",
     "tools/transcript-recorder",
     "tools/load-test",
+    "tools/deck-simulator",
+    "tools/tx-simulator",
     "tests/integration",
-    "tests/browser-smoke"
+    "tests/browser-smoke",
+    "tests/replay",
+    "tests/simulation"
   ],
   "scripts": {
     "build": "pnpm -r --filter \"@cardtable/*\" build",
