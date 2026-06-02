@@ -37,6 +37,11 @@ Thumbs.db
 .cache/
 .pytest_cache/
 
+# Playwright browser-smoke artifacts
+test-results/
+playwright-report/
+.last-run.json
+
 # Local scratch
 *.log
 *.tmp
